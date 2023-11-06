@@ -1,21 +1,36 @@
 package main
 
 import (
-	"GoSQL/src/disk"
+	"GoSQL/src/storage"
 	"log"
 )
 
 func Test() {
-	diskManager, err := disk.NewDiskManager("test.db")
+	pageManager := storage.NewPageManager()
+	diskManager, err := storage.NewDiskManager("test.db")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
-	_, err := diskManager.GetData(0, 5)
+	page := pageManager.NewPage()
+	str := "hehe"
+	err = page.Insert([]byte(str))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
-	_, err = diskManager.WritePage(3, []byte("hello world"))
-	if err != nil {
-		log.Fatal(err)
+	print(page)
+	done, err1 := diskManager.WritePage(6, page)
+	if err1 != nil {
+		log.Fatal(err1.Error())
 	}
+	page2, err1 := diskManager.ReadPage(1)
+	if err1 != nil {
+		log.Fatal(err1.Error())
+	}
+	page2.GetPageId()
+	print(done)
+	//print(pageManager.GetNewPageId())
+	//print(pageManager.GetNewPageId())
+	//print(pageManager.GetNewPageId())
+	//print(pageManager.GetNewPageId())
+
 }
