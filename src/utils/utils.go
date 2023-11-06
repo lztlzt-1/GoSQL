@@ -1,6 +1,9 @@
 package utils
 
-import "errors"
+import (
+	"crypto/sha256"
+	"errors"
+)
 
 // LazyGenerator 惰性生成器，利用协程提前生成下一个值，可以提供给不同函数
 func LazyGenerator(calFunc func(any) any, initState any) func() any {
@@ -54,4 +57,40 @@ func FastPow[T int | float64 | int32](value T, N int) T {
 		N = N >> 1
 	}
 	return res
+}
+
+// DeleteElement 删除列表的指定元素
+func DeleteElement[T int | float64 | Pair](slice []T, index int) []T {
+	return append(slice[:index], slice[index+1:]...)
+}
+
+// HashValueSHA256 求hash值
+func HashValueSHA256(value any) []byte {
+	hasher := sha256.New()
+	return hasher.Sum(nil)
+}
+
+// GetHashValueSHA256ToUint32 对于一个值求hash并取前4B
+func GetHashValueSHA256ToUint32(value any) uint32 {
+	v := HashValueSHA256(value)
+	bytes, err := ReadBytesFromPosition(v, 0, 4)
+	if err != nil {
+		return 0
+	}
+	return Bytes2Uint32(bytes)
+}
+
+// // GetHashValueSHA256ToInt 对于一个值求hash并取前4B
+//
+//	func GetHashValueSHA256ToInt(value any) int {
+//		v := HashValueSHA256(value)
+//		bytes, err := ReadBytesFromPosition(v, 0, 4)
+//		if err != nil {
+//			return 0
+//		}
+//		return Bytes2Int(bytes)
+//	}
+func GetHashValueSHA256ToInt(value any) int {
+
+	return value.(int)
 }

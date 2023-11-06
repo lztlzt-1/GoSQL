@@ -1,6 +1,7 @@
 package main
 
 import (
+	"GoSQL/src/algorithm/ExtendibleHash"
 	"GoSQL/src/storage"
 	"log"
 )
@@ -8,6 +9,10 @@ import (
 func Test() {
 	pageManager := storage.NewPageManager()
 	diskManager, err := storage.NewDiskManager("test.db")
+	bucket := ExtendibleHash.NewBucket(8, 0)
+	bucket.Insert("123", "cnm")
+	bucket.Insert(1.2, "ddd")
+	bucket.Delete(1.2)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

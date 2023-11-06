@@ -82,3 +82,20 @@ func BytesToIntList(myBytes []byte) []int {
 	}
 	return myList
 }
+
+func Uint322Bytes(value uint32) []byte {
+	byteValue := make([]byte, 4)
+	byteValue[0] = byte(value & 0xFF)
+	byteValue[1] = byte((value >> 8) & 0xFF)
+	byteValue[2] = byte((value >> 16) & 0xFF)
+	byteValue[3] = byte((value >> 24) & 0xFF)
+	return byteValue
+}
+
+func Bytes2Uint32(byteValue []byte) uint32 {
+	if len(byteValue) != 4 {
+		return 0
+	}
+	value := uint32(byteValue[0]) | uint32(byteValue[1])<<8 | uint32(byteValue[2])<<16 | uint32(byteValue[3])<<24
+	return value
+}
