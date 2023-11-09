@@ -6,7 +6,7 @@
 
 #### 内存中管理
 
-page：
+##### page：
 
 ​	基本存储单位，存储记录，结构体定义如下
 
@@ -23,15 +23,11 @@ type Page struct {
 
 使用slotted page作为数据管理方式
 
-pageTable
+##### pageTable
 
 ​	功能：对页进行管理，使用扩展hash作为存储数据结构，放在内存里面，管理磁盘的页，常驻内存中。存储格式是“记录编号（5B）+内存地址（8B）”，内存地址-1则表示还没有数据
 
-
-
-buffer
-
-replacer
+##### replacer
 
 ​	进行置换算法，结构体定义如下
 
@@ -48,3 +44,18 @@ type Lru_K_Replacer struct {
 
 
 疑问：go里面没有静态变量，这样会让编码有一定复杂度，比如timeGenerator用于生成时间序列，没有静态变量所以需要在结构体里加个类，可能会让开销增大？
+
+##### bufferPool
+
+```go
+type bufferPoolManager struct {
+	pages       []storage.Page
+	replacer_   replacer.LruKReplacer
+	pageTable   storage.PageTable
+	diskManager *storage.DiskManager
+}
+```
+
+* replacer负责调度淘汰策略，通过pageId进行
+* pageTable负责将页表翻译成bufferPool对应位置
+

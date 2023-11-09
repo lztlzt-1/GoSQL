@@ -34,7 +34,7 @@ func NewBufferPoolManager(bufferSize int) bufferPoolManager {
 	}
 }
 
-func (this *bufferPoolManager) Insert(page *storage.Page) int {
+func (this *bufferPoolManager) InsertPage(page *storage.Page) int {
 	if len(this.pages) != cap(this.pages) {
 		idx := len(this.pages)
 		this.pages = append(this.pages, *page)

@@ -9,6 +9,13 @@ const (
 	CannotBeEvict
 )
 
+const (
+	intType = iota
+	floatType
+	stringType
+	boolType
+)
+
 type FrameId int
 type PageId int
 
