@@ -2,11 +2,12 @@ package storage
 
 import (
 	"GoSQL/src/dataTypes"
+	"GoSQL/src/msg"
 	"GoSQL/src/utils"
 )
 
 type pageManager struct {
-	GetNewPageId func() int
+	GetNewPageId func() msg.PageId
 }
 
 func NewPageManager() pageManager {
@@ -17,16 +18,16 @@ func NewPageManager() pageManager {
 }
 
 // NewPageId 获取一个新的pageId
-func NewPageId() func() int {
-	initState := 0
+func NewPageId() func() msg.PageId {
+	initState := msg.PageId(0)
 	generatePageId := func(state any) any {
-		cur := state.(int)
+		cur := state.(msg.PageId)
 		cur = cur + 1
 		return cur
 	}
 	pageGenerator := utils.LazyGenerator(generatePageId, initState)
-	return func() int {
-		initState = pageGenerator().(int)
+	return func() msg.PageId {
+		initState = pageGenerator().(msg.PageId)
 		return initState
 	}
 }

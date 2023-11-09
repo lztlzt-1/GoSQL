@@ -1,12 +1,13 @@
 package storage
 
 import (
+	"GoSQL/src/msg"
 	"GoSQL/src/utils"
 	"errors"
 )
 
 type Page struct {
-	pageId      int
+	pageId      msg.PageId
 	pinCount    int
 	pageHeadPos uint16 //指向头部已存数据最后一个
 	pageTailPos uint16 //指向尾部已存数据最前一个
@@ -19,7 +20,7 @@ func (this *Page) GetData() []byte {
 	return slice
 }
 
-func (this *Page) GetPageId() int {
+func (this *Page) GetPageId() msg.PageId {
 	return this.pageId
 }
 
@@ -66,3 +67,7 @@ func (this *Page) Insert(value []byte) error {
 	}
 	return nil
 }
+
+//func (this *Page) Query(value []byte) error {
+//	//return
+//}

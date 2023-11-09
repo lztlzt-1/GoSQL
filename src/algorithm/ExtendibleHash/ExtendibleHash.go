@@ -1,39 +1,40 @@
 package ExtendibleHash
 
 import (
+	"GoSQL/src/msg"
 	"GoSQL/src/utils"
 )
 
-type extendibleHash struct {
+type ExtendibleHash struct {
 	buckets     []*bucket
 	globalDepth uint8
 	bucketSize  uint8
 }
 
-func NewExtendibleHash(size uint8) extendibleHash {
+func NewExtendibleHash(size uint8) ExtendibleHash {
 	buckets := make([]*bucket, 0)
 	bucket1 := NewBucket(size, 0)
 	buckets = append(buckets, &bucket1)
-	return extendibleHash{
+	return ExtendibleHash{
 		buckets:     buckets,
 		globalDepth: 0,
 		bucketSize:  size,
 	}
 }
 
-func (this *extendibleHash) GetGlobalDepth() uint8 {
+func (this *ExtendibleHash) GetGlobalDepth() uint8 {
 	return this.globalDepth
 }
 
-func (this *extendibleHash) GetLocalDepth(index int) uint8 {
+func (this *ExtendibleHash) GetLocalDepth(index int) uint8 {
 	return this.buckets[index].GetDepth()
 }
 
-func (this *extendibleHash) GetBucketNum() int {
+func (this *ExtendibleHash) GetBucketNum() int {
 	return len(this.buckets)
 }
 
-func (this *extendibleHash) redistribute(bucket_ *bucket) {
+func (this *ExtendibleHash) redistribute(bucket_ *bucket) {
 	originMask := 1<<bucket_.GetDepth() - 1
 	originKey := utils.GetHashValueSHA256ToInt(bucket_.list_[0].First) & originMask
 	bucket_.IncreaseDepth()
@@ -61,13 +62,12 @@ func (this *extendibleHash) redistribute(bucket_ *bucket) {
 	}
 }
 
-func (this *extendibleHash) Insert(key any, value any) int {
-
+func (this *ExtendibleHash) Insert(key any, value any) int {
 	for {
 		index := this.indexOf(key)
 		if !this.buckets[index].IsFull() {
 			this.buckets[index].Insert(key, value)
-			return success
+			return msg.Success
 		}
 		if this.GetGlobalDepth() != this.GetLocalDepth(index) {
 			this.redistribute(this.buckets[index])
@@ -81,8 +81,33 @@ func (this *extendibleHash) Insert(key any, value any) int {
 	}
 }
 
-func (this *extendibleHash) indexOf(key any) int {
+func (this *ExtendibleHash) indexOf(key any) int {
 	hash := utils.GetHashValueSHA256ToInt(key)
 	mask := 1<<this.GetGlobalDepth() - 1
 	return hash & mask
+}
+
+// Query hash中查询键值key的pair
+func (this *ExtendibleHash) Query(key any) *utils.Pair {
+	idx := this.indexOf(utils.GetHashValueSHA256ToInt(key))
+	bucket1 := this.buckets[idx]
+	return bucket1.Query(key)
+}
+
+func (this *ExtendibleHash) Delete(key any) int {
+	idx := this.indexOf(utils.GetHashValueSHA256ToInt(key))
+	bucket1 := this.buckets[idx]
+	if bucket1.Delete(key) == msg.Success {
+		return msg.Success
+	}
+	return msg.NotFound
+}
+
+func (this *ExtendibleHash) Update(key any, value any) int {
+	idx := this.indexOf(utils.GetHashValueSHA256ToInt(key))
+	bucket1 := this.buckets[idx]
+	if bucket1.Update(key, value) == msg.Success {
+		return msg.Success
+	}
+	return msg.NotFound
 }

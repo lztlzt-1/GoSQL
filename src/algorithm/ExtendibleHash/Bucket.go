@@ -1,6 +1,7 @@
 package ExtendibleHash
 
 import (
+	"GoSQL/src/msg"
 	"GoSQL/src/utils"
 )
 
@@ -45,25 +46,34 @@ func (this *bucket) IsFull() bool {
 func (this *bucket) Insert(key any, value any) int {
 	for _, item := range this.list_ {
 		if item.First == key {
-			item.Second = value
-			return 0
+			return msg.AlreadyExist
 		}
 	}
 	if this.IsFull() {
-		return bucketIsFull
+		return msg.BucketIsFull
 	}
 	this.list_ = append(this.list_, utils.Pair{First: key, Second: value})
-	return success
+	return msg.Success
+}
+
+func (this *bucket) Update(key any, value any) int {
+	for idx, item := range this.list_ {
+		if item.First == key {
+			this.list_[idx].Second = value
+			return msg.Success
+		}
+	}
+	return msg.NotFound
 }
 
 func (this *bucket) Delete(key any) int {
 	for index, item := range this.list_ {
 		if item.First == key {
 			this.list_ = utils.DeleteElement[utils.Pair](this.list_, index)
-			return success
+			return msg.Success
 		}
 	}
-	return notFind
+	return msg.NotFound
 }
 
 func (this *bucket) GetItem(key any) any {
@@ -72,9 +82,22 @@ func (this *bucket) GetItem(key any) any {
 			return item.Second
 		}
 	}
-	return notFind
+	return msg.NotFound
 }
 
 func (this *bucket) GetItems() any {
 	return this.list_
+}
+
+func (this *bucket) Query(key any) *utils.Pair {
+	for i := 0; i < int(this.GetSize()); i++ {
+		if this.list_[i].First == key {
+			pair := utils.Pair{
+				First:  this.list_[i].First,
+				Second: this.list_[i].Second,
+			}
+			return &pair
+		}
+	}
+	return nil
 }

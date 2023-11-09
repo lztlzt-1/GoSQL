@@ -80,17 +80,18 @@ func GetHashValueSHA256ToUint32(value any) uint32 {
 	return Bytes2Uint32(bytes)
 }
 
-// // GetHashValueSHA256ToInt 对于一个值求hash并取前4B
-//
-//	func GetHashValueSHA256ToInt(value any) int {
-//		v := HashValueSHA256(value)
-//		bytes, err := ReadBytesFromPosition(v, 0, 4)
-//		if err != nil {
-//			return 0
-//		}
-//		return Bytes2Int(bytes)
-//	}
-func GetHashValueSHA256ToInt(value any) int {
+// GetHashValueSHA256ToInt 对于一个值求hash并取前4B
 
-	return value.(int)
+func GetHashValueSHA256ToInt(value any) int {
+	v := HashValueSHA256(value)
+	bytes, err := ReadBytesFromPosition(v, 0, 4)
+	if err != nil {
+		return 0
+	}
+	return Bytes2Int(bytes)
 }
+
+//func GetHashValueSHA256ToInt(value any) int {
+//
+//	return value.(int)
+//}
