@@ -1,4 +1,4 @@
-package ExtendibleHash
+package Queue
 
 import "GoSQL/src/msg"
 
@@ -26,4 +26,8 @@ func (this *Queue[T]) Pop() int {
 
 func (this *Queue[T]) GetLength() int {
 	return len(this.data_)
+}
+
+func (this *Queue[T]) GetData() []T {
+	return this.data_
 }

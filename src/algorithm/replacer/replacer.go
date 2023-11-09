@@ -1,17 +1,18 @@
-package ExtendibleHash
+package replacer
 
 import (
 	"GoSQL/src/TimeManager"
+	"GoSQL/src/algorithm/Queue"
 	"GoSQL/src/msg"
 )
 
 type frameInfo struct {
 	evictable  *bool
-	insertTime *Queue[int]
+	insertTime *Queue.Queue[int]
 }
 
 type LruKReplacer struct {
-	hash_         map[msg.FrameId]frameInfo
+	hash_         map[msg.PageId]frameInfo
 	capacity      msg.ReplacerSize
 	k             uint8
 	evictableSize msg.ReplacerSize
@@ -19,7 +20,7 @@ type LruKReplacer struct {
 }
 
 func NewLruKReplacer(capacity msg.ReplacerSize, k uint8) LruKReplacer {
-	mp := make(map[msg.FrameId]frameInfo)
+	mp := make(map[msg.PageId]frameInfo)
 	for k, _ := range mp {
 		*mp[k].evictable = true
 	}
@@ -41,11 +42,11 @@ func (this *frameInfo) getSize() msg.ReplacerSize {
 	return msg.ReplacerSize(this.insertTime.GetLength())
 }
 
-func (this *LruKReplacer) Insert(id msg.FrameId) int {
+func (this *LruKReplacer) Insert(id msg.PageId) int {
 	if _, ok := this.hash_[id]; !ok {
 		if this.getSize() == this.capacity {
 			//淘汰，并插入
-			var id msg.FrameId = -1
+			var id msg.PageId = -1
 			state := this.Evict(&id)
 			if state != msg.Success {
 				return msg.CannotBeEvict
@@ -54,7 +55,7 @@ func (this *LruKReplacer) Insert(id msg.FrameId) int {
 		if this.getSize() == this.capacity {
 			return msg.NotFoundEvictable
 		}
-		queue := NewQueue[int]()
+		queue := Queue.NewQueue[int]()
 		nowTime := this.timeGenerator.GetNewTime()
 		queue.Push(nowTime)
 		bo := true
@@ -77,17 +78,17 @@ func isLess(d1 frameInfo, d2 frameInfo, k uint8) bool {
 	if d1.getSize() < msg.ReplacerSize(k) && d2.getSize() == msg.ReplacerSize(k) {
 		return true
 	}
-	return d1.insertTime.data_[0] < d2.insertTime.data_[0]
+	return d1.insertTime.GetData()[0] < d2.insertTime.GetData()[0]
 }
 
-func (this *LruKReplacer) Evict(id *msg.FrameId) int {
-	p := msg.FrameId(-1)
+func (this *LruKReplacer) Evict(id *msg.PageId) int {
+	p := msg.PageId(-1)
 	for key, value := range this.hash_ {
 		if (p == -1 || (isLess(value, this.hash_[p], this.k))) && *value.evictable == true {
 			p = key
 		}
 	}
-	if p != msg.FrameId(-1) {
+	if p != msg.PageId(-1) {
 		*id = p
 		delete(this.hash_, p)
 		this.evictableSize--
@@ -96,7 +97,7 @@ func (this *LruKReplacer) Evict(id *msg.FrameId) int {
 	return msg.NotFoundEvictable
 }
 
-func (this *LruKReplacer) SetEvict(id msg.FrameId, flag bool) int {
+func (this *LruKReplacer) SetEvict(id msg.PageId, flag bool) int {
 	if _, ok := this.hash_[id]; !ok {
 		return msg.NotFound
 	}
@@ -110,7 +111,7 @@ func (this *LruKReplacer) SetEvict(id msg.FrameId, flag bool) int {
 	return msg.Success
 }
 
-func (this *LruKReplacer) Remove(id msg.FrameId) int {
+func (this *LruKReplacer) Remove(id msg.PageId) int {
 	if _, ok := this.hash_[id]; !ok {
 		return msg.NotFound
 	}

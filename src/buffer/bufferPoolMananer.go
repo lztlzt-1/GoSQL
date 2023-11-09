@@ -2,6 +2,7 @@ package buffer
 
 import (
 	"GoSQL/src/algorithm/ExtendibleHash"
+	"GoSQL/src/algorithm/replacer"
 	"GoSQL/src/dataTypes"
 	"GoSQL/src/msg"
 	"GoSQL/src/storage"
@@ -11,7 +12,7 @@ import (
 
 type bufferPoolManager struct {
 	pages       []storage.Page
-	replacer_   ExtendibleHash.LruKReplacer
+	replacer_   replacer.LruKReplacer
 	pageTable   storage.PageTable
 	diskManager *storage.DiskManager
 }
@@ -22,7 +23,7 @@ type PageTable struct {
 
 func NewBufferPoolManager(bufferSize int) bufferPoolManager {
 	pages := make([]storage.Page, 0, bufferSize)
-	replacer := ExtendibleHash.NewLruKReplacer(msg.ReplacerSize(bufferSize), msg.CapacityLruTime)
+	replacer := replacer.NewLruKReplacer(msg.ReplacerSize(bufferSize), msg.CapacityLruTime)
 	table := storage.NewPageTable()
 	diskManager, _ := storage.NewDiskManager("test.db")
 	return bufferPoolManager{
@@ -37,14 +38,14 @@ func (this *bufferPoolManager) Insert(page *storage.Page) int {
 	if len(this.pages) != cap(this.pages) {
 		idx := len(this.pages)
 		this.pages = append(this.pages, *page)
-		this.pageTable.InsertRecord(msg.FrameId(idx), page.GetPageId())
-		this.replacer_.Insert(msg.FrameId(idx))
+		this.pageTable.InsertRecord(page.GetPageId(), msg.FrameId(idx))
+		this.replacer_.Insert(page.GetPageId())
 		return msg.Success
 	}
-	var id msg.FrameId
+	var id msg.PageId
 	if this.replacer_.Evict(&id) == msg.Success {
 		pair := this.pageTable.Query(id)
-		err := this.swapPage(pair.First.(msg.FrameId), page)
+		err := this.swapPage(pair.Second.(msg.FrameId), page)
 		if err != nil {
 			return msg.NotFoundEvictable
 		}
@@ -60,7 +61,8 @@ func (this *bufferPoolManager) swapPage(frameId msg.FrameId, newPage *storage.Pa
 		return errors.New(s)
 	}
 	this.pages[frameId] = *newPage
-	this.replacer_.Insert(frameId)
-	this.pageTable.UpdateRecord(frameId, newPage.GetPageId())
+	this.replacer_.Insert(newPage.GetPageId())
+	this.pageTable.DeleteRecord(oldPage.GetPageId())
+	this.pageTable.InsertRecord(newPage.GetPageId(), frameId)
 	return nil
 }
