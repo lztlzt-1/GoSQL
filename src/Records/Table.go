@@ -1,23 +1,27 @@
 package Records
 
 import (
+	"GoSQL/src/dataTypes"
+	"GoSQL/src/msg"
 	"GoSQL/src/structType"
+	"GoSQL/src/utils"
 	"errors"
 	"strconv"
 	"strings"
 )
 
 type Column struct {
-	name    string
-	value   any
-	itsType string
+	Name    string // 最多RecordNameLength长度
+	ItsType string
 }
 
 type Table struct {
-	name    string
-	column  []Column
-	records []structType.Record
-	length  int
+	Name       string // 最多TableNameLength长度
+	Length     int
+	ColumnSize int
+	RecordSize int
+	Column     []Column
+	Records    []structType.Record
 }
 
 func NewTable(name string, str string) (*Table, error) {
@@ -26,24 +30,32 @@ func NewTable(name string, str string) (*Table, error) {
 		return nil, errors.New("invalid string, please check")
 	}
 	var column []Column
+	recordSize := 0
 	for i := 0; i < len(list); i++ {
 		name := list[i]
+		if len(name) > msg.TableNameLength {
+			return nil, errors.New("table name is too large")
+		}
 		itsType := list[i+1]
 		i++
-		column = append(column, Column{name: name, itsType: itsType})
+		if utils.JudgeSize(itsType) == dataTypes.ErrorType {
+			return nil, errors.New("invalid data type, please check")
+		}
+		recordSize += utils.JudgeSize(itsType)
+		column = append(column, Column{Name: name, ItsType: itsType})
 	}
-	return &Table{name: name, column: column, length: 0}, nil
+	return &Table{Name: name, ColumnSize: len(column), Column: column, Length: 0, RecordSize: recordSize}, nil
 }
 
 func (this *Table) Insert(str string) error {
 	items := strings.Split(str, " ")
-	if len(items) != len(this.column) {
+	if len(items) != len(this.Column) {
 		return errors.New("error: While inserting into Table, count is not same")
 	}
 	record := structType.Record{}
 	//将所有传入的值转化成对应value，并检查错误
 	for i := 0; i < len(items); i++ {
-		switch this.column[i].itsType {
+		switch this.Column[i].ItsType {
 		case "int":
 			d, err := strconv.Atoi(items[i])
 			if err != nil {
@@ -62,14 +74,14 @@ func (this *Table) Insert(str string) error {
 			record.Value = append(record.Value, items[i])
 		}
 	}
-	this.records = append(this.records, record)
-	this.length++
+	this.Records = append(this.Records, record)
+	this.Length++
 	return nil
 }
 
 func (this *Table) queryidx(key string) (int, error) {
-	for i := 0; i < len(this.column); i++ {
-		if this.column[i].name == key {
+	for i := 0; i < len(this.Column); i++ {
+		if this.Column[i].Name == key {
 			return i, nil
 		}
 	}
@@ -78,15 +90,15 @@ func (this *Table) queryidx(key string) (int, error) {
 
 // Query 这个查询属于比较底层的，所以可以通过前面的步骤过滤到提供两个list,表示每一个key对应的value是数组里的值则拿出
 func (this *Table) Query(key []string, value []any) ([]structType.Record, error) {
-	n := len(this.records) // 总共查询记录的个数
+	n := len(this.Records) // 总共查询记录的个数
 	var queryRecords []structType.Record
 	idx, err := this.queryidx(key[0]) // column[idx]表示要查询的记录值
 	if err != nil {
 		return nil, err
 	}
 	for i := 0; i < n; i++ {
-		if this.records[i].Value[idx] == value[0] {
-			queryRecords = append(queryRecords, this.records[i])
+		if this.Records[i].Value[idx] == value[0] {
+			queryRecords = append(queryRecords, this.Records[i])
 		}
 	}
 	for j := 1; j < len(value); j++ {
@@ -108,14 +120,14 @@ func (this *Table) Query(key []string, value []any) ([]structType.Record, error)
 
 // Update 这个查询属于比较底层的，所以可以通过前面的步骤过滤到提供两个list
 func (this *Table) Update(key []string, value []any, updateKey []string, updateValue []any) error {
-	n := len(this.records) // 总共查询记录的个数
+	n := len(this.Records) // 总共查询记录的个数
 	var queryPos []int
 	idx, err := this.queryidx(key[0]) // column[idx]表示要查询的记录值
 	if err != nil {
 		return err
 	}
 	for i := 0; i < n; i++ {
-		if this.records[i].Value[idx] == value[0] {
+		if this.Records[i].Value[idx] == value[0] {
 			queryPos = append(queryPos, i)
 		}
 	}
@@ -127,7 +139,7 @@ func (this *Table) Update(key []string, value []any, updateKey []string, updateV
 			return err
 		}
 		for i := 0; i < n; i++ {
-			if this.records[queryPos[i]].Value[idx] == value[j] {
+			if this.Records[queryPos[i]].Value[idx] == value[j] {
 				localPos = append(localPos, queryPos[i])
 			}
 		}
@@ -140,7 +152,7 @@ func (this *Table) Update(key []string, value []any, updateKey []string, updateV
 			return err
 		}
 		for i := 0; i < n; i++ {
-			this.records[queryPos[i]].Value[queryidx] = updateValue[j]
+			this.Records[queryPos[i]].Value[queryidx] = updateValue[j]
 		}
 	}
 	return nil
@@ -152,8 +164,8 @@ func (this *Table) Delete(keys []string, values []any) error {
 		return errors.New("error: key and value slices must have the same length")
 	}
 
-	for i := 0; i < len(this.records); i++ {
-		record := this.records[i]
+	for i := 0; i < len(this.Records); i++ {
+		record := this.Records[i]
 		match := true
 		for j := 0; j < len(keys); j++ {
 			key := keys[j]
@@ -170,10 +182,39 @@ func (this *Table) Delete(keys []string, values []any) error {
 			}
 		}
 		if match {
-			this.records = append(this.records[:i], this.records[i+1:]...)
-			this.length--
+			this.Records = append(this.Records[:i], this.Records[i+1:]...)
+			this.Length--
 			i--
 		}
 	}
+	return nil
+}
+
+func (this *Table) ToDisk() error {
+	//var pages []storage.Page
+	var bytes []byte
+	name := make([]byte, 0, 10)
+	name = append(name, []byte(this.Name)...)
+	name = utils.FixSliceLength(name, 10).([]byte)
+	bytes = append(bytes, name...)
+	temp := utils.Int2Bytes(this.Length)
+	bytes = append(bytes, temp...)
+	temp = utils.Int2Bytes(this.ColumnSize)
+	bytes = append(bytes, temp...)
+	temp = utils.Int2Bytes(this.RecordSize)
+	bytes = append(bytes, temp...)
+	for i := 0; i < this.ColumnSize; i++ {
+		columeBytes := make([]byte, 0, 30)
+		columeBytes = append(columeBytes, []byte(this.Column[i].Name)...)
+		utils.FixSliceLength(columeBytes, 20)
+		columeBytes = append(columeBytes, []byte(this.Column[i].ItsType)...)
+		utils.FixSliceLength(columeBytes, 30)
+		bytes = append(bytes, columeBytes...)
+	}
+	for i := 0; i < this.Length; i++ {
+		recordBytes := make([]byte, 0, this.RecordSize)
+		re
+	}
+	print(bytes)
 	return nil
 }

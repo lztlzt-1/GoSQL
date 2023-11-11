@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"GoSQL/src/dataTypes"
 	"GoSQL/src/structType"
 	"crypto/sha256"
 	"errors"
+	"reflect"
 )
 
 // LazyGenerator 惰性生成器，利用协程提前生成下一个值，可以提供给不同函数
@@ -86,7 +88,6 @@ func GetHashValueSHA256ToUint32(value any) uint32 {
 }
 
 // GetHashValueSHA256ToInt 对于一个值求hash并取前4B
-
 func GetHashValueSHA256ToInt(value any) int {
 	v := HashValueSHA256(value)
 	bytes, err := ReadBytesFromPosition(v, 0, 4)
@@ -96,7 +97,30 @@ func GetHashValueSHA256ToInt(value any) int {
 	return Bytes2Int(bytes)
 }
 
-//func GetHashValueSHA256ToInt(value any) int {
-//
-//	return value.(int)
-//}
+// FixSliceLength 将一个切片填充null到cap
+func FixSliceLength(slice any, length int) any {
+	sliceValue := reflect.ValueOf(slice)
+	if sliceValue.Kind() != reflect.Slice {
+		panic("Input is not a slice")
+	}
+	currentLength := sliceValue.Len()
+	if currentLength >= length {
+		return slice
+	}
+	newSlice := reflect.MakeSlice(sliceValue.Type(), length, length)
+	reflect.Copy(newSlice, sliceValue)
+	return newSlice.Interface()
+}
+
+func JudgeSize(itsType string) int {
+	switch itsType {
+	case "int":
+		return dataTypes.IntSize
+	case "bool":
+		return dataTypes.BoolSize
+	case "float":
+		return dataTypes.FloatSize
+	default:
+		return dataTypes.ErrorType
+	}
+}

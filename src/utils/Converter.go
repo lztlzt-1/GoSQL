@@ -99,3 +99,7 @@ func Bytes2Uint32(byteValue []byte) uint32 {
 	value := uint32(byteValue[0]) | uint32(byteValue[1])<<8 | uint32(byteValue[2])<<16 | uint32(byteValue[3])<<24
 	return value
 }
+
+func Any2() {
+
+}

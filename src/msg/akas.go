@@ -25,3 +25,6 @@ type ReplacerSize uint8
 const CapacityLru = 7
 const CapacityLruTime = 3
 const CapacityBucket = 8
+
+const TableNameLength = 10
+const RecordNameLength = 20
