@@ -1,6 +1,8 @@
 package utils
 
-import "GoSQL/src/dataTypes"
+import (
+	"GoSQL/src/msg"
+)
 
 func Int162Bytes(value int16) []byte {
 	byteValue := make([]byte, 2)
@@ -41,7 +43,7 @@ func Uint162Bytes(value uint16) []byte {
 	return byteValue
 }
 
-func BytesToUint16(byteValue []byte) uint16 {
+func Bytes2Uint16(byteValue []byte) uint16 {
 	if len(byteValue) != 2 {
 		return 0
 	}
@@ -73,7 +75,7 @@ func ListIntToBytes(myList []int) []byte {
 
 func BytesToIntList(myBytes []byte) []int {
 	var myList []int
-	for i := 0; i < len(myBytes)/dataTypes.IntSize; i++ {
+	for i := 0; i < len(myBytes)/msg.IntSize; i++ {
 		bytes, err := ReadBytesFromPosition(myBytes, 4*i, 4)
 		if err != nil {
 			return nil
@@ -100,6 +102,34 @@ func Bytes2Uint32(byteValue []byte) uint32 {
 	return value
 }
 
-func Any2() {
+// Any2BytesForPage 给存页准备的任意类型转byte，其中string默认长度是msg.MaxStringLength
+func Any2BytesForPage(value any) []byte {
+	switch value.(type) {
+	case int:
+		return Int2Bytes(value.(int))
+	case int16:
+		return Int162Bytes(value.(int16))
+	case uint16:
+		return Uint162Bytes(value.(uint16))
+	case bool:
+		return Bool2Bytes(value.(bool))
+	case string:
+		bytes := []byte(value.(string))
+		return FixSliceLength(bytes, msg.MaxStringLength)
+	default:
+		return nil
+	}
+}
 
+func Bytes2Any(bytes []byte, itsType string) any {
+	switch itsType {
+	case "int":
+		return Bytes2Int(bytes)
+	case "bool":
+		return Bytes2Bool(bytes)
+	case "string":
+		return string(RemoveTrailingNullBytes(bytes))
+	default:
+		return nil
+	}
 }

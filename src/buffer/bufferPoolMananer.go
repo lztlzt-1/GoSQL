@@ -1,9 +1,7 @@
 package buffer
 
 import (
-	"GoSQL/src/algorithm/ExtendibleHash"
 	"GoSQL/src/algorithm/replacer"
-	"GoSQL/src/dataTypes"
 	"GoSQL/src/msg"
 	"GoSQL/src/storage"
 	"errors"
@@ -13,18 +11,14 @@ import (
 type bufferPoolManager struct {
 	pages       []storage.Page
 	replacer_   replacer.LruKReplacer
-	pageTable   storage.PageTable
+	pageTable   BufferPageTable
 	diskManager *storage.DiskManager
-}
-
-type PageTable struct {
-	hash ExtendibleHash.ExtendibleHash
 }
 
 func NewBufferPoolManager(bufferSize int) bufferPoolManager {
 	pages := make([]storage.Page, 0, bufferSize)
 	replacer := replacer.NewLruKReplacer(msg.ReplacerSize(bufferSize), msg.CapacityLruTime)
-	table := storage.NewPageTable()
+	table := NewPageTable()
 	diskManager, _ := storage.NewDiskManager("test.db")
 	return bufferPoolManager{
 		pages:       pages,
@@ -55,7 +49,7 @@ func (this *bufferPoolManager) InsertPage(page *storage.Page) int {
 
 func (this *bufferPoolManager) swapPage(frameId msg.FrameId, newPage *storage.Page) error {
 	oldPage := this.pages[frameId]
-	_, err := this.diskManager.WritePage(dataTypes.PageId(oldPage.GetPageId()), &oldPage)
+	_, err := this.diskManager.WritePage(msg.PageId(oldPage.GetPageId()), &oldPage)
 	if err != nil {
 		s := fmt.Sprint("can not swap the page {", oldPage.GetPageId(), "}")
 		return errors.New(s)

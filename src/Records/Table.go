@@ -1,8 +1,8 @@
 package Records
 
 import (
-	"GoSQL/src/dataTypes"
 	"GoSQL/src/msg"
+	"GoSQL/src/storage"
 	"GoSQL/src/structType"
 	"GoSQL/src/utils"
 	"errors"
@@ -11,20 +11,28 @@ import (
 )
 
 type Column struct {
-	Name    string // 最多RecordNameLength长度
+	Name    string
 	ItsType string
 }
 
 type Table struct {
-	Name       string // 最多TableNameLength长度
-	Length     int
+	PageId     msg.PageId // 这个不用存进disk里，表示这个表的起始页位置
+	Name       string     // 最多TableNameLength长度
+	Length     int        // todo: 可能能利用这个懒读取
 	ColumnSize int
 	RecordSize int
 	Column     []Column
 	Records    []structType.Record
 }
 
-func NewTable(name string, str string) (*Table, error) {
+// NewTable 创建一个新的表，名字是name，str表示“变量名1 变量名1类型 变量名2 变量名2类型”，tableList中存放它的地址
+func NewTable(name string, str string, tableList *[]*Table, diskManager storage.DiskManager) (*Table, error) {
+	pageId, err := diskManager.FindPageIdByName(name)
+	if pageId != 0 {
+		return nil, errors.New("the table is already exist")
+	} else if err != nil {
+		return nil, err
+	}
 	list := strings.Split(str, " ")
 	if len(list)&1 != 0 {
 		return nil, errors.New("invalid string, please check")
@@ -38,15 +46,22 @@ func NewTable(name string, str string) (*Table, error) {
 		}
 		itsType := list[i+1]
 		i++
-		if utils.JudgeSize(itsType) == dataTypes.ErrorType {
+		if utils.JudgeSize(itsType) == msg.ErrorType {
 			return nil, errors.New("invalid data type, please check")
 		}
-		recordSize += utils.JudgeSize(itsType)
+		size := utils.JudgeSize(itsType)
+		if size == -1 {
+			return nil, errors.New("invalid data type, please check")
+		}
+		recordSize += size
 		column = append(column, Column{Name: name, ItsType: itsType})
 	}
-	return &Table{Name: name, ColumnSize: len(column), Column: column, Length: 0, RecordSize: recordSize}, nil
+	table := Table{PageId: -1, Name: name, ColumnSize: len(column), Column: column, Length: 0, RecordSize: recordSize}
+	*tableList = append(*tableList, &table)
+	return &table, nil
 }
 
+// Insert 记录的插入操作，str表示“变量1的值 变量2的值...”
 func (this *Table) Insert(str string) error {
 	items := strings.Split(str, " ")
 	if len(items) != len(this.Column) {
@@ -190,12 +205,12 @@ func (this *Table) Delete(keys []string, values []any) error {
 	return nil
 }
 
-func (this *Table) ToDisk() error {
+func (this *Table) ToDisk(pageManager storage.PageManager, diskManager storage.DiskManager) error {
 	//var pages []storage.Page
 	var bytes []byte
-	name := make([]byte, 0, 10)
+	name := make([]byte, 0, msg.TableNameLength)
 	name = append(name, []byte(this.Name)...)
-	name = utils.FixSliceLength(name, 10).([]byte)
+	name = utils.FixSliceLength(name, msg.TableNameLength)
 	bytes = append(bytes, name...)
 	temp := utils.Int2Bytes(this.Length)
 	bytes = append(bytes, temp...)
@@ -204,17 +219,71 @@ func (this *Table) ToDisk() error {
 	temp = utils.Int2Bytes(this.RecordSize)
 	bytes = append(bytes, temp...)
 	for i := 0; i < this.ColumnSize; i++ {
-		columeBytes := make([]byte, 0, 30)
+		columeBytes := make([]byte, 0, msg.RecordNameLength+msg.RecordTypeSize)
 		columeBytes = append(columeBytes, []byte(this.Column[i].Name)...)
-		utils.FixSliceLength(columeBytes, 20)
+		columeBytes = utils.FixSliceLength(columeBytes, msg.RecordNameLength)
 		columeBytes = append(columeBytes, []byte(this.Column[i].ItsType)...)
-		utils.FixSliceLength(columeBytes, 30)
+		columeBytes = utils.FixSliceLength(columeBytes, msg.RecordNameLength+msg.RecordTypeSize)
 		bytes = append(bytes, columeBytes...)
 	}
-	for i := 0; i < this.Length; i++ {
+	for i := 0; i < len(this.Records); i++ {
 		recordBytes := make([]byte, 0, this.RecordSize)
-		re
+		for j := 0; j < len(this.Records[i].Value); j++ {
+			recordBytes = append(recordBytes, utils.Any2BytesForPage(this.Records[i].Value[j])...)
+		}
+		bytes = append(bytes, recordBytes...)
 	}
-	print(bytes)
+	var page *storage.Page
+	if this.PageId == -1 {
+		page = pageManager.NewPage()
+	} else {
+		page = pageManager.NewPageWithID(this.PageId)
+	}
+
+	err := page.InsertData(bytes)
+	if err != nil {
+		return err
+	}
+	_, err = diskManager.WritePage(page.GetPageId(), page)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (this *Table) LoadDataFromPage(page storage.Page) error {
+	bytes := page.GetData()
+	name := bytes[:msg.TableNameLength]
+	name = utils.RemoveTrailingNullBytes(name)
+	length := bytes[msg.TableNameLength : msg.TableNameLength+msg.IntSize]
+	columnSize := bytes[msg.TableNameLength+msg.IntSize : msg.TableNameLength+2*msg.IntSize]
+	recordSize := bytes[msg.TableNameLength+2*msg.IntSize : msg.TableNameLength+3*msg.IntSize]
+	this.Name = string(name)
+	this.Length = utils.Bytes2Int(length)
+	this.ColumnSize = utils.Bytes2Int(columnSize)
+	this.RecordSize = utils.Bytes2Int(recordSize)
+	pos := msg.TableNameLength + 3*msg.IntSize
+	var columns []Column
+	for i := 0; i < this.ColumnSize; i++ {
+		name := string(utils.RemoveTrailingNullBytes(bytes[pos : pos+msg.RecordNameLength]))
+		itsType := string(utils.RemoveTrailingNullBytes(bytes[pos+msg.RecordNameLength : pos+msg.RecordNameLength+msg.RecordTypeSize]))
+		columns = append(columns, Column{
+			Name:    name,
+			ItsType: itsType,
+		})
+		pos += msg.RecordNameLength + msg.RecordTypeSize
+	}
+	this.Column = columns
+	var records []structType.Record
+	for i := 0; i < this.Length; i++ {
+		var record structType.Record
+		for j := 0; j < this.ColumnSize; j++ {
+			size := utils.JudgeSize(this.Column[j].ItsType)
+			value := utils.Bytes2Any(bytes[pos:pos+size], this.Column[j].ItsType)
+			record.Value = append(record.Value, value)
+			pos += size
+		}
+		records = append(records, record)
+	}
+	this.Records = records
 	return nil
 }

@@ -1,7 +1,6 @@
 package msg
 
 import (
-	"GoSQL/src/dataTypes"
 	"fmt"
 )
 
@@ -13,6 +12,6 @@ func ReadErr(err error) string {
 	return fmt.Sprint("Error: reading error")
 }
 
-func WritePageErr(id dataTypes.PageId) string {
+func WritePageErr(id PageId) string {
 	return fmt.Sprint("Error: can not write data to page")
 }

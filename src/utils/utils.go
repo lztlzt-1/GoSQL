@@ -1,11 +1,11 @@
 package utils
 
 import (
-	"GoSQL/src/dataTypes"
+	"GoSQL/src/msg"
 	"GoSQL/src/structType"
 	"crypto/sha256"
 	"errors"
-	"reflect"
+	"os"
 )
 
 // LazyGenerator 惰性生成器，利用协程提前生成下一个值，可以提供给不同函数
@@ -97,30 +97,43 @@ func GetHashValueSHA256ToInt(value any) int {
 	return Bytes2Int(bytes)
 }
 
-// FixSliceLength 将一个切片填充null到cap
-func FixSliceLength(slice any, length int) any {
-	sliceValue := reflect.ValueOf(slice)
-	if sliceValue.Kind() != reflect.Slice {
-		panic("Input is not a slice")
-	}
-	currentLength := sliceValue.Len()
+// FixSliceLength 将一个byte切片填充null到cap
+func FixSliceLength(slice []byte, length int) []byte {
+	currentLength := len(slice)
 	if currentLength >= length {
-		return slice
+		return slice[:length]
 	}
-	newSlice := reflect.MakeSlice(sliceValue.Type(), length, length)
-	reflect.Copy(newSlice, sliceValue)
-	return newSlice.Interface()
+	return append(slice, make([]byte, length-len(slice))...)
 }
 
 func JudgeSize(itsType string) int {
 	switch itsType {
 	case "int":
-		return dataTypes.IntSize
+		return msg.IntSize
 	case "bool":
-		return dataTypes.BoolSize
+		return msg.BoolSize
 	case "float":
-		return dataTypes.FloatSize
+		return msg.FloatSize
+	case "string":
+		return msg.StringSize
 	default:
-		return dataTypes.ErrorType
+		return msg.ErrorType
 	}
+}
+
+// RemoveTrailingNullBytes 去掉数组冲最后面的0x00
+func RemoveTrailingNullBytes(input []byte) []byte {
+	// 找到最后一个非零字节的位置
+	lastNonZero := len(input) - 1
+	for lastNonZero >= 0 && input[lastNonZero] == 0x00 {
+		lastNonZero--
+	}
+	// 切片去掉尾部的零字节
+	return input[:lastNonZero+1]
+}
+
+// FileExists 判断是否存在某个文件
+func FileExists(filePath string) bool {
+	_, err := os.Stat(filePath)
+	return !os.IsNotExist(err)
 }

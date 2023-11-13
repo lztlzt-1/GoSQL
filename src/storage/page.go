@@ -48,7 +48,8 @@ func (this *Page) GetTailPos() uint16 {
 	return this.pageTailPos
 }
 
-func (this *Page) Insert(value []byte) error {
+// Deprecated: InsertTuple slotted Page方法，内存需要过多，暂时弃用
+func (this *Page) InsertTuple(value []byte) error {
 	if int(this.GetRemainSize()) < len(value) {
 		return errors.New("error: index out of range while inserting")
 	}
@@ -65,6 +66,19 @@ func (this *Page) Insert(value []byte) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (this *Page) InsertData(value []byte) error {
+	if int(this.GetRemainSize()) < len(value) {
+		return errors.New("error: index out of range while inserting")
+	}
+	var err error
+	this.data, err = utils.InsertAndReplaceAtIndex[byte](this.data, int(this.pageHeadPos), value)
+	if err != nil {
+		return err
+	}
+	this.pageHeadPos += uint16(len(value))
 	return nil
 }
 
