@@ -1,53 +1,69 @@
 package main
 
 import (
+	"GoSQL/src/Factory"
 	"GoSQL/src/Records"
+	"GoSQL/src/buffer"
 	"GoSQL/src/msg"
-	"GoSQL/src/storage"
-	"fmt"
+	"GoSQL/src/storage/DiskManager"
+	"GoSQL/src/storage/PageManager"
 	"log"
 )
 
-func GlobalInit() (storage.DiskManager, storage.PageManager, []*Records.Table, *storage.InitPage) {
-	diskManager, err := storage.NewDiskManager(msg.DBName)
+var tableList []*Records.Table
+var initPage PageManager.InitPage
+
+func Init() {
+	err := DiskManager.NewDiskManager(msg.DBName)
 	if err != nil {
 		log.Fatal(err)
 	}
-	initPage := storage.GetInitPage(*diskManager)
-	pageManager := storage.NewPageManager(initPage.GetInitPageID(), &initPage)
-	var tableList []*Records.Table
-	return *diskManager, pageManager, tableList, &initPage
+	initPage = PageManager.GetInitPage()
+	err = buffer.NewBufferPoolManager(8)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = PageManager.NewPageManager(initPage.GetInitPageID(), &initPage)
+	if err != nil {
+		return
+	}
 }
+
 func Test() {
-	diskManager, pageManager, tableList, initPage := GlobalInit()
+	Init()
 	defer func() {
 		for _, item := range tableList {
-			err := (*item).ToDisk(pageManager, diskManager)
+			err := (*item).ToDisk()
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
-		err := initPage.SetInitPageToDisk(diskManager)
+		err := initPage.SetInitPageToDisk()
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
 	// 上面是持久化的固定操作
-	table, err := Records.NewTable("test222", "schoolName string classNum int", &tableList, diskManager)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = table.Insert("hdu 7")
-	if err != nil {
-		return
-	}
-	//table, err := Factory.LoadTableByName("test222", diskManager, &tableList)
+	//table, err := Records.NewTable("test222", "schoolName string classNum int", &tableList)
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
+	table, err := Factory.LoadTableByName("test222", DiskManager.GlobalDiskManager, &tableList)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for i := 0; i < 18; i++ {
+		err = table.Insert("hdu 7")
+	}
+
+	if err != nil {
+		return
+	}
+
 	//err = table.Insert("hdu 100")
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
-	fmt.Println(table)
+	//fmt.Println(table)
 }

@@ -1,4 +1,4 @@
-package storage
+package PageManager
 
 import (
 	"GoSQL/src/msg"
@@ -10,13 +10,14 @@ type PageManager struct {
 	initPage     *InitPage
 }
 
-func NewPageManager(initState msg.PageId, page *InitPage) PageManager {
-	this := PageManager{
+var GlobalPageManager PageManager
+
+func NewPageManager(initState msg.PageId, page *InitPage) error {
+	GlobalPageManager = PageManager{
 		GetNewPageId: NewPageId(initState),
 		initPage:     page,
 	}
-
-	return this
+	return nil
 }
 
 // NewPageId 获取一个新的pageId
@@ -42,6 +43,7 @@ func (this *PageManager) NewPage() *Page {
 	page.isDirty = false
 	page.pageTailPos = msg.PageRemainSize - 1
 	page.pageHeadPos = 0
+	page.nextPageID = -1
 	this.initPage.SetInitPageID(pageId)
 	//page.pageSize = 0
 	page.data = make([]byte, msg.PageRemainSize)

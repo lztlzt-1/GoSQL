@@ -3,32 +3,33 @@ package buffer
 import (
 	"GoSQL/src/algorithm/replacer"
 	"GoSQL/src/msg"
-	"GoSQL/src/storage"
+	"GoSQL/src/storage/DiskManager"
+	"GoSQL/src/storage/PageManager"
 	"errors"
 	"fmt"
 )
 
-type bufferPoolManager struct {
-	pages       []storage.Page
-	replacer_   replacer.LruKReplacer
-	pageTable   BufferPageTable
-	diskManager *storage.DiskManager
+type BufferPoolManager struct {
+	pages     []PageManager.Page
+	replacer_ replacer.LruKReplacer
+	pageTable BufferPageTable
 }
 
-func NewBufferPoolManager(bufferSize int) bufferPoolManager {
-	pages := make([]storage.Page, 0, bufferSize)
+var GlobalBufferPoolManager BufferPoolManager
+
+func NewBufferPoolManager(bufferSize int) error {
+	pages := make([]PageManager.Page, 0, bufferSize)
 	replacer := replacer.NewLruKReplacer(msg.ReplacerSize(bufferSize), msg.CapacityLruTime)
 	table := NewPageTable()
-	diskManager, _ := storage.NewDiskManager("test.db")
-	return bufferPoolManager{
-		pages:       pages,
-		replacer_:   replacer,
-		pageTable:   table,
-		diskManager: diskManager,
+	GlobalBufferPoolManager = BufferPoolManager{
+		pages:     pages,
+		replacer_: replacer,
+		pageTable: table,
 	}
+	return nil
 }
 
-func (this *bufferPoolManager) InsertPage(page *storage.Page) int {
+func (this *BufferPoolManager) InsertPage(page *PageManager.Page) int {
 	if len(this.pages) != cap(this.pages) {
 		idx := len(this.pages)
 		this.pages = append(this.pages, *page)
@@ -47,9 +48,9 @@ func (this *bufferPoolManager) InsertPage(page *storage.Page) int {
 	return msg.Success
 }
 
-func (this *bufferPoolManager) swapPage(frameId msg.FrameId, newPage *storage.Page) error {
+func (this *BufferPoolManager) swapPage(frameId msg.FrameId, newPage *PageManager.Page) error {
 	oldPage := this.pages[frameId]
-	_, err := this.diskManager.WritePage(msg.PageId(oldPage.GetPageId()), &oldPage)
+	_, err := DiskManager.GlobalDiskManager.WritePage(msg.PageId(oldPage.GetPageId()), &oldPage)
 	if err != nil {
 		s := fmt.Sprint("can not swap the page {", oldPage.GetPageId(), "}")
 		return errors.New(s)

@@ -2,10 +2,12 @@ package Records
 
 import (
 	"GoSQL/src/msg"
-	"GoSQL/src/storage"
+	"GoSQL/src/storage/DiskManager"
+	"GoSQL/src/storage/PageManager"
 	"GoSQL/src/structType"
 	"GoSQL/src/utils"
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -23,14 +25,17 @@ type Table struct {
 	RecordSize int
 	Column     []Column
 	Records    []structType.Record
+	NextPageID msg.PageId // 这个不用存进disk里，页的头里面包含了，表示这个表的下一页
+	HeadPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
+	//StartPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
 }
 
 // NewTable 创建一个新的表，名字是name，str表示“变量名1 变量名1类型 变量名2 变量名2类型”，tableList中存放它的地址
-func NewTable(name string, str string, tableList *[]*Table, diskManager storage.DiskManager) (*Table, error) {
-	pageId, err := diskManager.FindPageIdByName(name)
+func NewTable(name string, str string, tableList *[]*Table) (*Table, error) {
+	pageId, err := DiskManager.GlobalDiskManager.FindPageIdByName(name)
 	if pageId != 0 {
 		return nil, errors.New("the table is already exist")
-	} else if err != nil {
+	} else if err != nil && err != io.EOF {
 		return nil, err
 	}
 	list := strings.Split(str, " ")
@@ -56,7 +61,7 @@ func NewTable(name string, str string, tableList *[]*Table, diskManager storage.
 		recordSize += size
 		column = append(column, Column{Name: name, ItsType: itsType})
 	}
-	table := Table{PageId: -1, Name: name, ColumnSize: len(column), Column: column, Length: 0, RecordSize: recordSize}
+	table := Table{PageId: -1, Name: name, ColumnSize: len(column), NextPageID: -1, HeadPageID: -1, Column: column, Length: 0, RecordSize: recordSize}
 	*tableList = append(*tableList, &table)
 	return &table, nil
 }
@@ -94,6 +99,7 @@ func (this *Table) Insert(str string) error {
 	return nil
 }
 
+// 私有函数，用作查询列的某一项对应的下标
 func (this *Table) queryidx(key string) (int, error) {
 	for i := 0; i < len(this.Column); i++ {
 		if this.Column[i].Name == key {
@@ -104,7 +110,16 @@ func (this *Table) queryidx(key string) (int, error) {
 }
 
 // Query 这个查询属于比较底层的，所以可以通过前面的步骤过滤到提供两个list,表示每一个key对应的value是数组里的值则拿出
-func (this *Table) Query(key []string, value []any) ([]structType.Record, error) {
+func (this *Table) Query(key []string, value []any, startPageIDs ...msg.PageId) ([]structType.Record, error) {
+	// 模拟默认参数
+	//var startPageID msg.PageId
+	//if len(startPageIDs) == 0 {
+	//	startPageID = this.PageId
+	//} else if len(startPageIDs) == 1 {
+	//	startPageID = startPageIDs[0]
+	//} else {
+	//	log.Fatal("parameter is invalid")
+	//}
 	n := len(this.Records) // 总共查询记录的个数
 	var queryRecords []structType.Record
 	idx, err := this.queryidx(key[0]) // column[idx]表示要查询的记录值
@@ -129,6 +144,18 @@ func (this *Table) Query(key []string, value []any) ([]structType.Record, error)
 			}
 		}
 		queryRecords = localRecords
+	}
+	// 递归读取下一个页的数据
+	if this.NextPageID != -1 {
+		newPage, err2 := DiskManager.GlobalDiskManager.GetPageById(this.NextPageID)
+		if err2 != nil {
+			return nil, err2
+		}
+		err := this.LoadDataFromPage(newPage)
+		if err != nil {
+			return nil, err
+		}
+
 	}
 	return queryRecords, nil
 }
@@ -205,7 +232,7 @@ func (this *Table) Delete(keys []string, values []any) error {
 	return nil
 }
 
-func (this *Table) ToDisk(pageManager storage.PageManager, diskManager storage.DiskManager) error {
+func (this *Table) ToDisk() error {
 	//var pages []storage.Page
 	var bytes []byte
 	name := make([]byte, 0, msg.TableNameLength)
@@ -233,24 +260,27 @@ func (this *Table) ToDisk(pageManager storage.PageManager, diskManager storage.D
 		}
 		bytes = append(bytes, recordBytes...)
 	}
-	var page *storage.Page
+	var page *PageManager.Page
 	if this.PageId == -1 {
-		page = pageManager.NewPage()
+		page = PageManager.GlobalPageManager.NewPage()
 	} else {
-		page = pageManager.NewPageWithID(this.PageId)
+		page = PageManager.GlobalPageManager.NewPageWithID(this.PageId)
 	}
 
-	err := page.InsertData(bytes)
+	err := page.InsertDataAndToDisk(bytes)
 	if err != nil {
 		return err
 	}
-	_, err = diskManager.WritePage(page.GetPageId(), page)
+	//_, err = storage.GlobalDiskManager.WritePage(page.GetPageId(), page)
+
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (this *Table) LoadDataFromPage(page storage.Page) error {
+
+// LoadDataFromPage 将数据从page解析到表里
+func (this *Table) LoadDataFromPage(page PageManager.Page) error {
 	bytes := page.GetData()
 	name := bytes[:msg.TableNameLength]
 	name = utils.RemoveTrailingNullBytes(name)
@@ -285,5 +315,6 @@ func (this *Table) LoadDataFromPage(page storage.Page) error {
 		records = append(records, record)
 	}
 	this.Records = records
+	this.NextPageID = page.GetPageId()
 	return nil
 }

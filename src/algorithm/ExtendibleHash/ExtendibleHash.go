@@ -8,7 +8,19 @@ import (
 type ExtendibleHash struct {
 	buckets     []*bucket
 	globalDepth uint8
-	bucketSize  uint8
+	bucketSize  uint8 // 指bucket的最大容量
+}
+
+func (this *ExtendibleHash) GetAllBuckets() []utils.Pair {
+	var records []utils.Pair
+	visited := make(map[*bucket]bool)
+	for _, bucketAddr := range this.buckets {
+		if _, ok := visited[bucketAddr]; !ok {
+			records = append(records, bucketAddr.GetAllItems()...)
+		}
+		visited[bucketAddr] = true
+	}
+	return records
 }
 
 func NewExtendibleHash(size uint8) ExtendibleHash {

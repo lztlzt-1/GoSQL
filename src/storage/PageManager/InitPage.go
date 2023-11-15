@@ -1,7 +1,8 @@
-package storage
+package PageManager
 
 import (
 	"GoSQL/src/msg"
+	"GoSQL/src/storage/DiskManager"
 	"GoSQL/src/utils"
 	"errors"
 	"log"
@@ -13,16 +14,19 @@ type InitPage struct {
 	initPageID msg.PageId
 }
 
-func GetInitPage(diskManager DiskManager) InitPage {
+func GetInitPage() InitPage {
 	this := InitPage{}
 	magic := make([]byte, msg.MagicSize)
-	_, err := diskManager.fp.Read(magic)
+	err := DiskManager.GlobalDiskManager.Read(&magic)
+	if err != nil {
+		return InitPage{}
+	}
 	if err != nil || string(magic) != "MagicGoSQL" {
 		log.Fatal(errors.New("error: it's not a GoSQL file"))
 	}
 	this.magic = string(magic)
 	initIDBytes := make([]byte, msg.IntSize)
-	_, err = diskManager.fp.Read(initIDBytes)
+	err = DiskManager.GlobalDiskManager.Read(&initIDBytes)
 	if err != nil {
 		log.Fatal(errors.New("error: it's not a GoSQL file"))
 	}
@@ -31,12 +35,12 @@ func GetInitPage(diskManager DiskManager) InitPage {
 	return this
 }
 
-func (this *InitPage) SetInitPageToDisk(diskManager DiskManager) error {
+func (this *InitPage) SetInitPageToDisk() error {
 	bytes := make([]byte, 0, msg.PageSize)
 	bytes = append(bytes, []byte(this.magic)...)
 	bytes = append(bytes, utils.Int2Bytes(int(this.initPageID))...)
 	bytes = utils.FixSliceLength(bytes, msg.PageSize)
-	err := diskManager.WriteData(bytes)
+	err := DiskManager.GlobalDiskManager.WriteData(bytes)
 	if err != nil {
 		return err
 	}

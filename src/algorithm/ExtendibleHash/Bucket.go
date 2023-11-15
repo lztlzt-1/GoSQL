@@ -101,3 +101,11 @@ func (this *bucket) Query(key any) *utils.Pair {
 	}
 	return nil
 }
+
+func (this *bucket) GetAllItems() []utils.Pair {
+	var items []utils.Pair
+	for i := 0; i < int(this.GetSize()); i++ {
+		items = append(items, this.list_[i])
+	}
+	return items
+}

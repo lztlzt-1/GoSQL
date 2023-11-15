@@ -1,7 +1,7 @@
 package msg
 
 const PageSize = 4096
-const PageRemainSize = 4083
+const PageRemainSize = 4079
 const TupleSlotSize = 2
 const (
 	IntSize    = 4
@@ -32,7 +32,7 @@ const TableNameLength = 20
 const RecordNameLength = 20
 const RecordTypeSize = 10
 const MaxStringLength = 255
-const PageHeadSize = 13
+const PageHeadSize = 17
 const MagicSize = 10
 
 type FrameId int

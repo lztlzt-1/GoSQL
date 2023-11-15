@@ -1,7 +1,8 @@
-package storage
+package DiskManager
 
 import (
 	"GoSQL/src/msg"
+	"GoSQL/src/storage/PageManager"
 	"GoSQL/src/utils"
 	"errors"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"os"
 	"strings"
 )
+
+var GlobalDiskManager DiskManager
 
 type DiskManager struct {
 	fp *os.File // 存储DiskManager指向的文件
@@ -31,17 +34,18 @@ func initDBFile(filePath string) {
 	return
 }
 
-func NewDiskManager(filePath string) (*DiskManager, error) {
+func NewDiskManager(filePath string) error {
 	if !utils.FileExists(filePath) {
 		initDBFile(filePath)
 	}
 	file, err := os.OpenFile(filePath, os.O_RDWR, 0660)
 	if err != nil {
-		return nil, errors.New(msg.Nofile(filePath))
+		return errors.New(msg.Nofile(filePath))
 	}
-	return &DiskManager{
+	GlobalDiskManager = DiskManager{
 		fp: file,
-	}, nil
+	}
+	return nil
 }
 
 // GetData 从偏移量offset的地址下读取length长度数据
@@ -63,7 +67,7 @@ func Shutdown() {
 }
 
 // WritePage 向磁盘的文件中写入一个页,如果超过文件大小则会在最末尾加
-func (this *DiskManager) WritePage(pageId msg.PageId, page *Page) (int, error) {
+func (this *DiskManager) WritePage(pageId msg.PageId, page *PageManager.Page) (int, error) {
 	offset := pageId * msg.PageSize
 	_, err := this.fp.Seek(int64(offset), 0)
 	if err != nil {
@@ -71,27 +75,31 @@ func (this *DiskManager) WritePage(pageId msg.PageId, page *Page) (int, error) {
 	}
 	data := make([]byte, msg.PageSize)
 	// 按照页的每个属性进行写入
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 0, utils.Int2Bytes(int(page.pageId)))
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 0, utils.Int2Bytes(int(page.GetPageId())))
 	if err != nil {
 		return msg.Success, err
 	}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 4, utils.Int2Bytes(page.pinCount))
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 4, utils.Int2Bytes(int(page.GetNextID())))
 	if err != nil {
 		return msg.Success, err
 	}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 8, utils.Uint162Bytes(page.pageHeadPos))
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 8, utils.Int2Bytes(page.GetPinCount()))
 	if err != nil {
 		return msg.Success, err
 	}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 10, utils.Uint162Bytes(page.pageTailPos))
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 12, utils.Uint162Bytes(page.GetHeaderPos()))
 	if err != nil {
 		return msg.Success, err
 	}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 12, utils.Bool2Bytes(page.isDirty))
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 14, utils.Uint162Bytes(page.GetTailPos()))
 	if err != nil {
 		return msg.Success, err
 	}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 13, page.data)
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 16, utils.Bool2Bytes(page.IsDirty()))
+	if err != nil {
+		return msg.Success, err
+	}
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 17, page.GetData())
 	if err != nil {
 		return msg.Success, err
 	}
@@ -104,7 +112,7 @@ func (this *DiskManager) WritePage(pageId msg.PageId, page *Page) (int, error) {
 	if err != nil {
 		return msg.Success, err
 	}
-	return len(page.data), nil
+	return len(page.GetData()), nil
 	// 可能需要刷新同步数据到磁盘
 }
 
@@ -122,10 +130,10 @@ func (this *DiskManager) WriteData(bytes []byte) error {
 }
 
 // ReadPage 从页中的pageId表示偏移量中读出一页
-func (this *DiskManager) ReadPage(pageId msg.PageId) (Page, error) {
+func (this *DiskManager) ReadPage(pageId msg.PageId) (PageManager.Page, error) {
 	offset := pageId * msg.PageSize
 	_, err := this.fp.Seek(int64(offset), 0)
-	page := Page{}
+	page := PageManager.Page{}
 	if err != nil {
 		return page, err
 	}
@@ -137,22 +145,23 @@ func (this *DiskManager) ReadPage(pageId msg.PageId) (Page, error) {
 	}
 	var readData []byte
 	readData, err = utils.ReadBytesFromPosition(data, 0, 4)
-	page.pageId = msg.PageId(utils.Bytes2Int(readData))
+	page.SetPageId(msg.PageId(utils.Bytes2Int(readData)))
 	readData, err = utils.ReadBytesFromPosition(data, 4, 4)
-	page.pinCount = utils.Bytes2Int(readData)
+	page.SetPinCount(utils.Bytes2Int(readData))
 	readData, err = utils.ReadBytesFromPosition(data, 8, 2)
-	page.pageHeadPos = utils.Bytes2Uint16(readData)
+	page.SetHeaderPos(utils.Bytes2Uint16(readData))
 	readData, err = utils.ReadBytesFromPosition(data, 10, 2)
-	page.pageTailPos = utils.Bytes2Uint16(readData)
+	page.SetTailPos(utils.Bytes2Uint16(readData))
 	readData, err = utils.ReadBytesFromPosition(data, 12, 1)
-	page.isDirty = utils.Bytes2Bool(readData)
-	page.data, err = utils.ReadBytesFromPosition(data, 13, msg.PageRemainSize)
+	page.SetDirty(utils.Bytes2Bool(readData))
+	values, err := utils.ReadBytesFromPosition(data, 13, msg.PageRemainSize)
+	page.SetData(values)
 	log.Println(msg.SuccessWritePage(int(pageId)))
 	return page, nil
 }
 
 func (this *DiskManager) FindPageIdByName(name string) (msg.PageId, error) {
-	readPos := 13
+	readPos := msg.PageHeadSize
 	for {
 		_, err := this.fp.Seek(int64(readPos), 0)
 		if err != nil {
@@ -180,15 +189,15 @@ func (this *DiskManager) FindPageIdByName(name string) (msg.PageId, error) {
 	}
 }
 
-func (this *DiskManager) GetPageById(pageid msg.PageId) (Page, error) {
+func (this *DiskManager) GetPageById(pageid msg.PageId) (PageManager.Page, error) {
 	_, err := this.fp.Seek(int64(pageid*msg.PageSize), 0)
 	if err != nil {
-		return Page{}, err
+		return PageManager.Page{}, err
 	}
 	pageBytes := make([]byte, msg.PageSize)
 	_, err = this.fp.Read(pageBytes)
 	if err != nil {
-		return Page{}, err
+		return PageManager.Page{}, err
 	}
 	id := utils.Bytes2Int(pageBytes[:4])
 	count := utils.Bytes2Int(pageBytes[4:8])
@@ -196,15 +205,22 @@ func (this *DiskManager) GetPageById(pageid msg.PageId) (Page, error) {
 	tailPos := utils.Bytes2Uint16(pageBytes[10:12])
 	isDirty := utils.Bytes2Bool(pageBytes[12:13])
 	bytes := pageBytes[13:]
-	page := Page{
-		pageId:      msg.PageId(id),
-		pinCount:    count,
-		pageHeadPos: headPos,
-		pageTailPos: tailPos,
-		isDirty:     isDirty,
-		data:        bytes,
-	}
+	page := PageManager.Page{}
+	page.SetPageId(msg.PageId(id))
+	page.SetPinCount(count)
+	page.SetHeaderPos(headPos)
+	page.SetTailPos(tailPos)
+	page.SetDirty(isDirty)
+	page.SetData(bytes)
 	return page, nil
+}
+
+func (this *DiskManager) Read(slice *[]byte) error {
+	_, err := this.fp.Read(*slice)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func WriteLog(logData []byte, size int) {

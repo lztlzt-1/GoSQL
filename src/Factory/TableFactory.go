@@ -2,10 +2,10 @@ package Factory
 
 import (
 	"GoSQL/src/Records"
-	"GoSQL/src/storage"
+	"GoSQL/src/storage/DiskManager"
 )
 
-func LoadTableByName(name string, diskManager storage.DiskManager, tableList *[]*Records.Table) (*Records.Table, error) {
+func LoadTableByName(name string, diskManager DiskManager.DiskManager, tableList *[]*Records.Table) (*Records.Table, error) {
 	table := Records.Table{}
 	pageId, err := diskManager.FindPageIdByName(name)
 	table.PageId = pageId
