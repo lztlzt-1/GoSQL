@@ -5,26 +5,26 @@ import (
 	"GoSQL/src/Records"
 	"GoSQL/src/buffer"
 	"GoSQL/src/msg"
-	"GoSQL/src/storage/DiskManager"
-	"GoSQL/src/storage/PageManager"
+	"GoSQL/src/storage/diskMgr"
+	"GoSQL/src/storage/pageMgr"
 	"log"
 )
 
 var tableList []*Records.Table
-var initPage PageManager.InitPage
+var initPage pageMgr.InitPage
 
 func Init() {
-	err := DiskManager.NewDiskManager(msg.DBName)
+	err := diskMgr.NewDiskManager(msg.DBName)
 	if err != nil {
 		log.Fatal(err)
 	}
-	initPage = PageManager.GetInitPage()
+	initPage = pageMgr.GetInitPage()
 	err = buffer.NewBufferPoolManager(8)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = PageManager.NewPageManager(initPage.GetInitPageID(), &initPage)
+	err = pageMgr.NewPageManager(initPage.GetInitPageID(), &initPage)
 	if err != nil {
 		return
 	}
@@ -34,7 +34,7 @@ func Test() {
 	Init()
 	defer func() {
 		for _, item := range tableList {
-			err := (*item).ToDisk()
+			err := (*item).ToDisk(diskMgr.GlobalDiskManager, pageMgr.GlobalPageManager)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -49,11 +49,11 @@ func Test() {
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
-	table, err := Factory.LoadTableByName("test222", DiskManager.GlobalDiskManager, &tableList)
+	table, err := Factory.LoadTableByName("test222", diskMgr.GlobalDiskManager, &tableList)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for i := 0; i < 18; i++ {
+	for i := 0; i < 30; i++ {
 		err = table.Insert("hdu 7")
 	}
 

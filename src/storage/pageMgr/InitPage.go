@@ -1,8 +1,8 @@
-package PageManager
+package pageMgr
 
 import (
 	"GoSQL/src/msg"
-	"GoSQL/src/storage/DiskManager"
+	"GoSQL/src/storage/diskMgr"
 	"GoSQL/src/utils"
 	"errors"
 	"log"
@@ -17,7 +17,7 @@ type InitPage struct {
 func GetInitPage() InitPage {
 	this := InitPage{}
 	magic := make([]byte, msg.MagicSize)
-	err := DiskManager.GlobalDiskManager.Read(&magic)
+	err := diskMgr.GlobalDiskManager.Read(&magic)
 	if err != nil {
 		return InitPage{}
 	}
@@ -26,7 +26,7 @@ func GetInitPage() InitPage {
 	}
 	this.magic = string(magic)
 	initIDBytes := make([]byte, msg.IntSize)
-	err = DiskManager.GlobalDiskManager.Read(&initIDBytes)
+	err = diskMgr.GlobalDiskManager.Read(&initIDBytes)
 	if err != nil {
 		log.Fatal(errors.New("error: it's not a GoSQL file"))
 	}
@@ -40,7 +40,7 @@ func (this *InitPage) SetInitPageToDisk() error {
 	bytes = append(bytes, []byte(this.magic)...)
 	bytes = append(bytes, utils.Int2Bytes(int(this.initPageID))...)
 	bytes = utils.FixSliceLength(bytes, msg.PageSize)
-	err := DiskManager.GlobalDiskManager.WriteData(bytes)
+	err := diskMgr.GlobalDiskManager.WriteData(bytes)
 	if err != nil {
 		return err
 	}

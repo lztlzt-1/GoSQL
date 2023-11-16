@@ -1,8 +1,8 @@
-package DiskManager
+package diskMgr
 
 import (
 	"GoSQL/src/msg"
-	"GoSQL/src/storage/PageManager"
+	"GoSQL/src/structType"
 	"GoSQL/src/utils"
 	"errors"
 	"io"
@@ -67,7 +67,7 @@ func Shutdown() {
 }
 
 // WritePage 向磁盘的文件中写入一个页,如果超过文件大小则会在最末尾加
-func (this *DiskManager) WritePage(pageId msg.PageId, page *PageManager.Page) (int, error) {
+func (this *DiskManager) WritePage(pageId msg.PageId, page *structType.Page) (int, error) {
 	offset := pageId * msg.PageSize
 	_, err := this.fp.Seek(int64(offset), 0)
 	if err != nil {
@@ -79,7 +79,7 @@ func (this *DiskManager) WritePage(pageId msg.PageId, page *PageManager.Page) (i
 	if err != nil {
 		return msg.Success, err
 	}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 4, utils.Int2Bytes(int(page.GetNextID())))
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 4, utils.Int2Bytes(int(page.GetNextPageId())))
 	if err != nil {
 		return msg.Success, err
 	}
@@ -130,10 +130,10 @@ func (this *DiskManager) WriteData(bytes []byte) error {
 }
 
 // ReadPage 从页中的pageId表示偏移量中读出一页
-func (this *DiskManager) ReadPage(pageId msg.PageId) (PageManager.Page, error) {
+func (this *DiskManager) ReadPage(pageId msg.PageId) (structType.Page, error) {
 	offset := pageId * msg.PageSize
 	_, err := this.fp.Seek(int64(offset), 0)
-	page := PageManager.Page{}
+	page := structType.Page{}
 	if err != nil {
 		return page, err
 	}
@@ -189,24 +189,26 @@ func (this *DiskManager) FindPageIdByName(name string) (msg.PageId, error) {
 	}
 }
 
-func (this *DiskManager) GetPageById(pageid msg.PageId) (PageManager.Page, error) {
+func (this *DiskManager) GetPageById(pageid msg.PageId) (structType.Page, error) {
 	_, err := this.fp.Seek(int64(pageid*msg.PageSize), 0)
 	if err != nil {
-		return PageManager.Page{}, err
+		return structType.Page{}, err
 	}
 	pageBytes := make([]byte, msg.PageSize)
 	_, err = this.fp.Read(pageBytes)
 	if err != nil {
-		return PageManager.Page{}, err
+		return structType.Page{}, err
 	}
 	id := utils.Bytes2Int(pageBytes[:4])
-	count := utils.Bytes2Int(pageBytes[4:8])
-	headPos := utils.Bytes2Uint16(pageBytes[8:10])
-	tailPos := utils.Bytes2Uint16(pageBytes[10:12])
-	isDirty := utils.Bytes2Bool(pageBytes[12:13])
-	bytes := pageBytes[13:]
-	page := PageManager.Page{}
+	nextID := utils.Bytes2Int(pageBytes[4:8])
+	count := utils.Bytes2Int(pageBytes[8:12])
+	headPos := utils.Bytes2Uint16(pageBytes[12:14])
+	tailPos := utils.Bytes2Uint16(pageBytes[14:16])
+	isDirty := utils.Bytes2Bool(pageBytes[16:17])
+	bytes := pageBytes[17:]
+	page := structType.Page{}
 	page.SetPageId(msg.PageId(id))
+	page.SetNextPageId(msg.PageId(nextID))
 	page.SetPinCount(count)
 	page.SetHeaderPos(headPos)
 	page.SetTailPos(tailPos)

@@ -3,14 +3,14 @@ package buffer
 import (
 	"GoSQL/src/algorithm/replacer"
 	"GoSQL/src/msg"
-	"GoSQL/src/storage/DiskManager"
-	"GoSQL/src/storage/PageManager"
+	"GoSQL/src/storage/diskMgr"
+	"GoSQL/src/structType"
 	"errors"
 	"fmt"
 )
 
 type BufferPoolManager struct {
-	pages     []PageManager.Page
+	pages     []structType.Page
 	replacer_ replacer.LruKReplacer
 	pageTable BufferPageTable
 }
@@ -18,7 +18,7 @@ type BufferPoolManager struct {
 var GlobalBufferPoolManager BufferPoolManager
 
 func NewBufferPoolManager(bufferSize int) error {
-	pages := make([]PageManager.Page, 0, bufferSize)
+	pages := make([]structType.Page, 0, bufferSize)
 	replacer := replacer.NewLruKReplacer(msg.ReplacerSize(bufferSize), msg.CapacityLruTime)
 	table := NewPageTable()
 	GlobalBufferPoolManager = BufferPoolManager{
@@ -29,7 +29,7 @@ func NewBufferPoolManager(bufferSize int) error {
 	return nil
 }
 
-func (this *BufferPoolManager) InsertPage(page *PageManager.Page) int {
+func (this *BufferPoolManager) InsertPage(page *structType.Page) int {
 	if len(this.pages) != cap(this.pages) {
 		idx := len(this.pages)
 		this.pages = append(this.pages, *page)
@@ -48,9 +48,9 @@ func (this *BufferPoolManager) InsertPage(page *PageManager.Page) int {
 	return msg.Success
 }
 
-func (this *BufferPoolManager) swapPage(frameId msg.FrameId, newPage *PageManager.Page) error {
+func (this *BufferPoolManager) swapPage(frameId msg.FrameId, newPage *structType.Page) error {
 	oldPage := this.pages[frameId]
-	_, err := DiskManager.GlobalDiskManager.WritePage(msg.PageId(oldPage.GetPageId()), &oldPage)
+	_, err := diskMgr.GlobalDiskManager.WritePage(msg.PageId(oldPage.GetPageId()), &oldPage)
 	if err != nil {
 		s := fmt.Sprint("can not swap the page {", oldPage.GetPageId(), "}")
 		return errors.New(s)

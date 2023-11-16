@@ -2,8 +2,8 @@ package Records
 
 import (
 	"GoSQL/src/msg"
-	"GoSQL/src/storage/DiskManager"
-	"GoSQL/src/storage/PageManager"
+	"GoSQL/src/storage/diskMgr"
+	"GoSQL/src/storage/pageMgr"
 	"GoSQL/src/structType"
 	"GoSQL/src/utils"
 	"errors"
@@ -32,7 +32,7 @@ type Table struct {
 
 // NewTable 创建一个新的表，名字是name，str表示“变量名1 变量名1类型 变量名2 变量名2类型”，tableList中存放它的地址
 func NewTable(name string, str string, tableList *[]*Table) (*Table, error) {
-	pageId, err := DiskManager.GlobalDiskManager.FindPageIdByName(name)
+	pageId, err := diskMgr.GlobalDiskManager.FindPageIdByName(name)
 	if pageId != 0 {
 		return nil, errors.New("the table is already exist")
 	} else if err != nil && err != io.EOF {
@@ -147,7 +147,7 @@ func (this *Table) Query(key []string, value []any, startPageIDs ...msg.PageId) 
 	}
 	// 递归读取下一个页的数据
 	if this.NextPageID != -1 {
-		newPage, err2 := DiskManager.GlobalDiskManager.GetPageById(this.NextPageID)
+		newPage, err2 := diskMgr.GlobalDiskManager.GetPageById(this.NextPageID)
 		if err2 != nil {
 			return nil, err2
 		}
@@ -232,7 +232,7 @@ func (this *Table) Delete(keys []string, values []any) error {
 	return nil
 }
 
-func (this *Table) ToDisk() error {
+func (this *Table) ToDisk(GlobalDiskManager diskMgr.DiskManager, GlobalPageManager pageMgr.PageManager) error {
 	//var pages []storage.Page
 	var bytes []byte
 	name := make([]byte, 0, msg.TableNameLength)
@@ -246,12 +246,12 @@ func (this *Table) ToDisk() error {
 	temp = utils.Int2Bytes(this.RecordSize)
 	bytes = append(bytes, temp...)
 	for i := 0; i < this.ColumnSize; i++ {
-		columeBytes := make([]byte, 0, msg.RecordNameLength+msg.RecordTypeSize)
-		columeBytes = append(columeBytes, []byte(this.Column[i].Name)...)
-		columeBytes = utils.FixSliceLength(columeBytes, msg.RecordNameLength)
-		columeBytes = append(columeBytes, []byte(this.Column[i].ItsType)...)
-		columeBytes = utils.FixSliceLength(columeBytes, msg.RecordNameLength+msg.RecordTypeSize)
-		bytes = append(bytes, columeBytes...)
+		columnBytes := make([]byte, 0, msg.RecordNameLength+msg.RecordTypeSize)
+		columnBytes = append(columnBytes, []byte(this.Column[i].Name)...)
+		columnBytes = utils.FixSliceLength(columnBytes, msg.RecordNameLength)
+		columnBytes = append(columnBytes, []byte(this.Column[i].ItsType)...)
+		columnBytes = utils.FixSliceLength(columnBytes, msg.RecordNameLength+msg.RecordTypeSize)
+		bytes = append(bytes, columnBytes...)
 	}
 	for i := 0; i < len(this.Records); i++ {
 		recordBytes := make([]byte, 0, this.RecordSize)
@@ -260,27 +260,29 @@ func (this *Table) ToDisk() error {
 		}
 		bytes = append(bytes, recordBytes...)
 	}
-	var page *PageManager.Page
+	var page *structType.Page
 	if this.PageId == -1 {
-		page = PageManager.GlobalPageManager.NewPage()
+		page = GlobalPageManager.NewPage()
 	} else {
-		page = PageManager.GlobalPageManager.NewPageWithID(this.PageId)
+		var err error
+		pageValue, err := GlobalDiskManager.GetPageById(this.PageId)
+		if err != nil {
+			return err
+		}
+		page = &pageValue
 	}
 
-	err := page.InsertDataAndToDisk(bytes)
+	err := GlobalPageManager.InsertDataAndToDisk(*page, bytes, this.RecordSize, GlobalDiskManager)
 	if err != nil {
 		return err
 	}
 	//_, err = storage.GlobalDiskManager.WritePage(page.GetPageId(), page)
 
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 // LoadDataFromPage 将数据从page解析到表里
-func (this *Table) LoadDataFromPage(page PageManager.Page) error {
+func (this *Table) LoadDataFromPage(page structType.Page) error {
 	bytes := page.GetData()
 	name := bytes[:msg.TableNameLength]
 	name = utils.RemoveTrailingNullBytes(name)
@@ -306,6 +308,9 @@ func (this *Table) LoadDataFromPage(page PageManager.Page) error {
 	var records []structType.Record
 	for i := 0; i < this.Length; i++ {
 		var record structType.Record
+		if msg.PageRemainSize-pos < this.RecordSize {
+			break
+		}
 		for j := 0; j < this.ColumnSize; j++ {
 			size := utils.JudgeSize(this.Column[j].ItsType)
 			value := utils.Bytes2Any(bytes[pos:pos+size], this.Column[j].ItsType)
@@ -315,6 +320,9 @@ func (this *Table) LoadDataFromPage(page PageManager.Page) error {
 		records = append(records, record)
 	}
 	this.Records = records
-	this.NextPageID = page.GetPageId()
+	if this.NextPageID == -1 {
+		this.NextPageID = page.GetNextPageId()
+	}
+
 	return nil
 }

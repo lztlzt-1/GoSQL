@@ -2,6 +2,7 @@ package utils
 
 import (
 	"GoSQL/src/msg"
+	"log"
 )
 
 func Int162Bytes(value int16) []byte {
@@ -30,10 +31,16 @@ func Int2Bytes(value int) []byte {
 
 func Bytes2Int(byteValue []byte) int {
 	if len(byteValue) != 4 {
-		return 0
+		log.Fatal("error while change bytes to int")
+		return 0 // 或者根据需要返回错误
 	}
-	value := int(byteValue[0]) | int(byteValue[1])<<8 | int(byteValue[2])<<16 | int(byteValue[3])<<24
-	return value
+
+	var value int32
+	for i := 0; i < 4; i++ {
+		value |= int32(byteValue[i]) << (uint(i) * 8)
+	}
+
+	return int(value)
 }
 
 func Uint162Bytes(value uint16) []byte {

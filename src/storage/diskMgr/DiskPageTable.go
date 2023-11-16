@@ -1,4 +1,4 @@
-package DiskManager
+package diskMgr
 
 import (
 	"GoSQL/src/algorithm/ExtendibleHash"

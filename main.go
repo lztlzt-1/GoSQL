@@ -8,4 +8,6 @@ func main() {
 	//file.Close()
 	Test()
 	//fmt.Println("123")
+	//bytes := []byte{0xff, 0xff, 0xff, 0xff}
+	//fmt.Println(utils.Bytes2Int(bytes))
 }
