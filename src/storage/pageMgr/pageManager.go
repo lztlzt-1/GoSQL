@@ -103,7 +103,7 @@ func (this *PageManager) insertMultipleData(page structType.Page, value []byte, 
 			if err != nil {
 				return err
 			}
-			newPage = &pageValue
+			newPage = pageValue
 		}
 		page.SetNextPageId(newPage.GetPageId())
 	}
@@ -161,5 +161,7 @@ func (this *PageManager) InsertDataAndToDisk(page structType.Page, value []byte,
 func (this *PageManager) CreateNextPage(page structType.Page) *structType.Page {
 	newPage := this.NewPage()
 	page.SetNextPageId(newPage.GetPageId())
+	newPage.SetDirty(false)
+	newPage.SetPinCount(page.GetPinCount())
 	return newPage
 }

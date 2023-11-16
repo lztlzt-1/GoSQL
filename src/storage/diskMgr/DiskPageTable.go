@@ -11,6 +11,12 @@ type DiskPageTable struct {
 	hash ExtendibleHash.ExtendibleHash
 }
 
+func NewDiskPageTable(size uint8) DiskPageTable {
+	return DiskPageTable{
+		hash: ExtendibleHash.NewExtendibleHash(size),
+	}
+}
+
 func (this *DiskPageTable) Query(id msg.PageId) *utils.Pair {
 	return this.hash.Query(id)
 }
@@ -20,8 +26,8 @@ func NewPageTable() DiskPageTable {
 }
 
 // InsertTable 向页表中插入一个表格
-func (this *DiskPageTable) InsertTable(pageId msg.PageId, frameId msg.FrameId) int {
-	return this.hash.Insert(pageId, frameId)
+func (this *DiskPageTable) InsertTable(pageName string, pageID msg.PageId) int {
+	return this.hash.Insert(pageName, pageID)
 }
 
 func (this *DiskPageTable) UpdateTable(pageId msg.PageId, frameId msg.FrameId) int {

@@ -32,10 +32,16 @@ const TableNameLength = 20
 const RecordNameLength = 20
 const RecordTypeSize = 10
 const MaxStringLength = 255
+const DiskBucketSize = 8
 const PageHeadSize = 17
 const MagicSize = 10
 
 type FrameId int
 type PageId int
+
+const PageIDSize = 4
+
 type TimeType int64
 type ReplacerSize uint8
+
+const PageTableStart = 1

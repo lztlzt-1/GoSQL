@@ -4,7 +4,6 @@ import (
 	"GoSQL/src/msg"
 	"GoSQL/src/structType"
 	"GoSQL/src/utils"
-	"errors"
 	"io"
 	"log"
 	"os"
@@ -14,36 +13,91 @@ import (
 var GlobalDiskManager DiskManager
 
 type DiskManager struct {
-	fp *os.File // 存储DiskManager指向的文件
+	fp            *os.File // 存储DiskManager指向的文件
+	diskPageTable DiskPageTable
 }
 
-func initDBFile(filePath string) {
-	file, err := os.OpenFile(filePath, os.O_CREATE, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = file.Write([]byte("MagicGoSQL"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = file.Write(utils.Int2Bytes(0))
-	if err != nil {
-		log.Fatal(err)
-	}
-	file.Close()
-	return
-}
-
+// NewDiskManager 全局只需要一个diskManager！
 func NewDiskManager(filePath string) error {
 	if !utils.FileExists(filePath) {
-		initDBFile(filePath)
+		initDBFile(filePath) // 进行初始化创建db文件
 	}
 	file, err := os.OpenFile(filePath, os.O_RDWR, 0660)
 	if err != nil {
-		return errors.New(msg.Nofile(filePath))
+		return err
 	}
 	GlobalDiskManager = DiskManager{
-		fp: file,
+		fp:            file,
+		diskPageTable: NewDiskPageTable(msg.DiskBucketSize),
+	}
+	err = GlobalDiskManager.loadPageTable(msg.PageTableStart)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// 读页表，页表每条记录是20B的名字+4B的ID（偏移量）
+func (this *DiskManager) loadPageTable(id msg.PageId) error {
+	offset := id * msg.PageSize
+	bytes, err := this.GetData(int64(offset), msg.PageSize)
+	if err != nil {
+		return err
+	}
+	pos := 0
+	for i := 0; i < msg.PageSize/(msg.TableNameLength+msg.PageIDSize); i++ {
+		tableName := string(bytes[pos : pos+msg.TableNameLength])
+		pageID := utils.Bytes2Int(bytes[pos+msg.TableNameLength : pos+msg.TableNameLength+msg.PageIDSize])
+		if pageID != 0 {
+			this.diskPageTable.InsertTable(tableName, msg.PageId(pageID))
+		} else {
+			break
+		}
+		pos += msg.TableNameLength + msg.PageIDSize
+	}
+	nextPageID := utils.Bytes2Int(bytes[msg.PageSize-4:])
+	if nextPageID != 0 {
+		err := this.loadPageTable(id + 1)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (this *DiskManager) InsertTableToTablePage(name string, id msg.PageId) error {
+	this.diskPageTable.InsertTable(name, id)
+	return nil
+}
+
+func (this *DiskManager) DumpPageTable() error {
+	buckets := this.diskPageTable.hash.GetAllBuckets()
+	length := len(buckets)
+	sizeInOnePage := msg.PageSize / (msg.TableNameLength + msg.PageIDSize)
+	for i := 0; i < length/sizeInOnePage; i++ {
+		bytes := make([]byte, 0, msg.PageSize)
+		pos := 0
+		for j := 0; j < sizeInOnePage; j++ {
+			var err error
+			bytes, err = utils.InsertAndReplaceAtIndex[byte](bytes, pos, []byte(buckets[i*sizeInOnePage+j].First.(string)))
+			if err != nil {
+				return err
+			}
+			pos += msg.TableNameLength
+			bytes, err = utils.InsertAndReplaceAtIndex[byte](bytes, pos, utils.Int2Bytes(int(buckets[i*sizeInOnePage+j].First.(msg.PageId))))
+			if err != nil {
+				return err
+			}
+			pos += msg.PageIDSize
+		}
+		_, err := this.fp.Seek(int64((i+1)*msg.PageSize), 0)
+		if err != nil {
+			return err
+		}
+		_, err = this.fp.Write(bytes)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -64,6 +118,30 @@ func (this *DiskManager) GetData(offset int64, length int) ([]byte, error) {
 
 func Shutdown() {
 
+}
+
+func initDBFile(filePath string) {
+	file, err := os.OpenFile(filePath, os.O_CREATE, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = file.Write([]byte("MagicGoSQL"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = file.Write(utils.Int2Bytes(1))
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = file.Write(make([]byte, 2*msg.PageSize-msg.MagicSize-msg.IntSize))
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = file.Close()
+	if err != nil {
+		return
+	}
+	return
 }
 
 // WritePage 向磁盘的文件中写入一个页,如果超过文件大小则会在最末尾加
@@ -189,18 +267,21 @@ func (this *DiskManager) FindPageIdByName(name string) (msg.PageId, error) {
 	}
 }
 
-func (this *DiskManager) GetPageById(pageid msg.PageId) (structType.Page, error) {
+func (this *DiskManager) GetPageById(pageid msg.PageId) (*structType.Page, error) {
 	_, err := this.fp.Seek(int64(pageid*msg.PageSize), 0)
 	if err != nil {
-		return structType.Page{}, err
+		return nil, err
 	}
 	pageBytes := make([]byte, msg.PageSize)
 	_, err = this.fp.Read(pageBytes)
 	if err != nil {
-		return structType.Page{}, err
+		return nil, err
 	}
 	id := utils.Bytes2Int(pageBytes[:4])
 	nextID := utils.Bytes2Int(pageBytes[4:8])
+	if nextID == 0 {
+		nextID = -1
+	}
 	count := utils.Bytes2Int(pageBytes[8:12])
 	headPos := utils.Bytes2Uint16(pageBytes[12:14])
 	tailPos := utils.Bytes2Uint16(pageBytes[14:16])
@@ -214,9 +295,10 @@ func (this *DiskManager) GetPageById(pageid msg.PageId) (structType.Page, error)
 	page.SetTailPos(tailPos)
 	page.SetDirty(isDirty)
 	page.SetData(bytes)
-	return page, nil
+	return &page, nil
 }
 
+// Deprecated: Use GetData instead.
 func (this *DiskManager) Read(slice *[]byte) error {
 	_, err := this.fp.Read(*slice)
 	if err != nil {

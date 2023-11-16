@@ -16,17 +16,15 @@ type InitPage struct {
 
 func GetInitPage() InitPage {
 	this := InitPage{}
-	magic := make([]byte, msg.MagicSize)
-	err := diskMgr.GlobalDiskManager.Read(&magic)
-	if err != nil {
-		return InitPage{}
-	}
+	magic, err := diskMgr.GlobalDiskManager.GetData(0, msg.MagicSize)
 	if err != nil || string(magic) != "MagicGoSQL" {
 		log.Fatal(errors.New("error: it's not a GoSQL file"))
 	}
 	this.magic = string(magic)
-	initIDBytes := make([]byte, msg.IntSize)
-	err = diskMgr.GlobalDiskManager.Read(&initIDBytes)
+	initIDBytes, err := diskMgr.GlobalDiskManager.GetData(msg.MagicSize, msg.IntSize)
+	if err != nil {
+		return InitPage{}
+	}
 	if err != nil {
 		log.Fatal(errors.New("error: it's not a GoSQL file"))
 	}

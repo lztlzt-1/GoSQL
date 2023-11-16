@@ -11,6 +11,17 @@ type ExtendibleHash struct {
 	bucketSize  uint8 // 指bucket的最大容量
 }
 
+func NewExtendibleHash(size uint8) ExtendibleHash {
+	buckets := make([]*bucket, 0)
+	bucket1 := NewBucket(size, 0)
+	buckets = append(buckets, &bucket1)
+	return ExtendibleHash{
+		buckets:     buckets,
+		globalDepth: 0,
+		bucketSize:  size,
+	}
+}
+
 func (this *ExtendibleHash) GetAllBuckets() []utils.Pair {
 	var records []utils.Pair
 	visited := make(map[*bucket]bool)
@@ -21,17 +32,6 @@ func (this *ExtendibleHash) GetAllBuckets() []utils.Pair {
 		visited[bucketAddr] = true
 	}
 	return records
-}
-
-func NewExtendibleHash(size uint8) ExtendibleHash {
-	buckets := make([]*bucket, 0)
-	bucket1 := NewBucket(size, 0)
-	buckets = append(buckets, &bucket1)
-	return ExtendibleHash{
-		buckets:     buckets,
-		globalDepth: 0,
-		bucketSize:  size,
-	}
 }
 
 func (this *ExtendibleHash) GetGlobalDepth() uint8 {

@@ -31,7 +31,7 @@ type Table struct {
 }
 
 // NewTable 创建一个新的表，名字是name，str表示“变量名1 变量名1类型 变量名2 变量名2类型”，tableList中存放它的地址
-func NewTable(name string, str string, tableList *[]*Table) (*Table, error) {
+func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr.PageManager, diskManager *diskMgr.DiskManager) (*Table, error) {
 	pageId, err := diskMgr.GlobalDiskManager.FindPageIdByName(name)
 	if pageId != 0 {
 		return nil, errors.New("the table is already exist")
@@ -61,6 +61,11 @@ func NewTable(name string, str string, tableList *[]*Table) (*Table, error) {
 		recordSize += size
 		column = append(column, Column{Name: name, ItsType: itsType})
 	}
+	//newID := pageManager.GetNewPageId()
+	//err = diskManager.InsertTableToTablePage(name, newID)
+	//if err != nil {
+	//	return nil, err
+	//}
 	table := Table{PageId: -1, Name: name, ColumnSize: len(column), NextPageID: -1, HeadPageID: -1, Column: column, Length: 0, RecordSize: recordSize}
 	*tableList = append(*tableList, &table)
 	return &table, nil
@@ -151,7 +156,7 @@ func (this *Table) Query(key []string, value []any, startPageIDs ...msg.PageId) 
 		if err2 != nil {
 			return nil, err2
 		}
-		err := this.LoadDataFromPage(newPage)
+		err := this.LoadDataFromPage(*newPage)
 		if err != nil {
 			return nil, err
 		}
@@ -260,19 +265,22 @@ func (this *Table) ToDisk(GlobalDiskManager diskMgr.DiskManager, GlobalPageManag
 		}
 		bytes = append(bytes, recordBytes...)
 	}
+	var err error
 	var page *structType.Page
 	if this.PageId == -1 {
 		page = GlobalPageManager.NewPage()
 	} else {
-		var err error
-		pageValue, err := GlobalDiskManager.GetPageById(this.PageId)
+		page, err = GlobalDiskManager.GetPageById(this.PageId)
 		if err != nil {
-			return err
+			if err == io.EOF {
+				// 说明当前table所属的page没有被初始化
+				page = GlobalPageManager.NewPageWithID(this.PageId)
+			} else {
+				return err
+			}
 		}
-		page = &pageValue
 	}
-
-	err := GlobalPageManager.InsertDataAndToDisk(*page, bytes, this.RecordSize, GlobalDiskManager)
+	err = GlobalPageManager.InsertDataAndToDisk(*page, bytes, this.RecordSize, GlobalDiskManager)
 	if err != nil {
 		return err
 	}

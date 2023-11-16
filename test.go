@@ -1,7 +1,6 @@
 package main
 
 import (
-	"GoSQL/src/Factory"
 	"GoSQL/src/Records"
 	"GoSQL/src/buffer"
 	"GoSQL/src/msg"
@@ -45,14 +44,14 @@ func Test() {
 		}
 	}()
 	// 上面是持久化的固定操作
-	//table, err := Records.NewTable("test222", "schoolName string classNum int", &tableList)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	table, err := Factory.LoadTableByName("test222", diskMgr.GlobalDiskManager, &tableList)
+	table, err := Records.NewTable("test222", "schoolName string classNum int", &tableList, &pageMgr.GlobalPageManager, &diskMgr.GlobalDiskManager)
 	if err != nil {
 		log.Fatal(err)
 	}
+	//table, err := Factory.LoadTableByName("test222", diskMgr.GlobalDiskManager, &tableList)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
 	for i := 0; i < 30; i++ {
 		err = table.Insert("hdu 7")
 	}
