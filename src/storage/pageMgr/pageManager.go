@@ -35,6 +35,10 @@ func NewPageId(initState msg.PageId) func() msg.PageId {
 	}
 }
 
+func (this *PageManager) GetInitPage() *InitPage {
+	return this.initPage
+}
+
 // NewPage 生成一个新页,返回指针
 func (this *PageManager) NewPage() *structType.Page {
 	pageId := this.GetNewPageId()

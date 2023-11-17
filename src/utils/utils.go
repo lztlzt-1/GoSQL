@@ -26,7 +26,7 @@ func LazyGenerator(calFunc func(any) any, initState any) func() any {
 	return returnFunc
 }
 
-// InsertAndReplaceAtIndex 在切片slice的index地方插入一段切片，如果插入后长度超过则不插入
+// InsertAndReplaceAtIndex 在切片slice的index地方插入一段切片，如果插入后长度超过则不插入,这个函数是用来替换原有数据的，如果没有则不能使用
 func InsertAndReplaceAtIndex[T int | byte](slice []T, index int, values []T) ([]T, error) {
 	if index < 0 || index+len(values) > len(slice) {
 		return slice, errors.New("index out of range")
@@ -74,6 +74,8 @@ func DeleteElementNormal(slice []any, index int) []any {
 // HashValueSHA256 求hash值
 func HashValueSHA256(value any) []byte {
 	hasher := sha256.New()
+	valBytes := Any2BytesForPage(value)
+	hasher.Write(valBytes)
 	return hasher.Sum(nil)
 }
 

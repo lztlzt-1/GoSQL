@@ -62,11 +62,11 @@ func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr
 		recordSize += size
 		column = append(column, Column{Name: name, ItsType: itsType})
 	}
-	//newID := pageManager.GetNewPageId()
-	//err = diskManager.InsertTableToTablePage(name, newID)
-	//if err != nil {
-	//	return nil, err
-	//}
+	newID := pageManager.GetNewPageId()
+	err = GlobalDiskManager.InsertTableToTablePage(name, newID)
+	if err != nil {
+		return nil, err
+	}
 	table := Table{PageId: -1, Name: name, ColumnSize: len(column), NextPageID: -1, HeadPageID: -1, Column: column, Length: 0, RecordSize: recordSize}
 	*tableList = append(*tableList, &table)
 	return &table, nil

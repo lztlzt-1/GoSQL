@@ -23,9 +23,6 @@ func GetInitPage(GlobalDiskManager *diskMgr.DiskManager) *InitPage {
 	this.magic = string(magic)
 	initIDBytes, err := GlobalDiskManager.GetData(msg.MagicSize, msg.IntSize)
 	if err != nil {
-		return nil
-	}
-	if err != nil {
 		log.Fatal(errors.New("error: it's not a GoSQL file"))
 	}
 	id := utils.Bytes2Int(initIDBytes)

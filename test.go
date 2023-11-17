@@ -6,11 +6,13 @@ import (
 	"GoSQL/src/msg"
 	"GoSQL/src/storage/diskMgr"
 	"GoSQL/src/storage/pageMgr"
+	"fmt"
 	"log"
 )
 
 var tableList *[]*Records.Table
-var initPage *pageMgr.InitPage
+
+// var initPage *pageMgr.InitPage
 var GlobalDiskManager *diskMgr.DiskManager
 var GlobalPageManager *pageMgr.PageManager
 
@@ -18,12 +20,9 @@ func Init() {
 	var err error
 	GlobalDiskManager, err = diskMgr.NewDiskManager(msg.DBName)
 	if err != nil {
-		return
-	}
-	if err != nil {
 		log.Fatal(err)
 	}
-	initPage = pageMgr.GetInitPage(GlobalDiskManager)
+	initPage := pageMgr.GetInitPage(GlobalDiskManager)
 	err = buffer.NewBufferPoolManager(8)
 	if err != nil {
 		log.Fatal(err)
@@ -39,18 +38,30 @@ func Init() {
 func Test() {
 	Init()
 	defer func() {
+
+		err := GlobalDiskManager.DumpPageTable()
+		if err != nil {
+			return
+		}
 		for _, item := range *tableList {
 			err := (*item).ToDisk(GlobalDiskManager, GlobalPageManager)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
-		err := initPage.SetInitPageToDisk(GlobalDiskManager)
+		err = GlobalPageManager.GetInitPage().SetInitPageToDisk(GlobalDiskManager)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
 	// 上面是持久化的固定操作
+	for i := 0; i < 300; i++ {
+		str := fmt.Sprintf("test{%v}", i)
+		_, err := Records.NewTable(str, "schoolName string classNum int", tableList, GlobalPageManager, GlobalDiskManager)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	table, err := Records.NewTable("test222", "schoolName string classNum int", tableList, GlobalPageManager, GlobalDiskManager)
 	if err != nil {
 		log.Fatal(err)
