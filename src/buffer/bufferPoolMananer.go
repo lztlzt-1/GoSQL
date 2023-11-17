@@ -29,7 +29,7 @@ func NewBufferPoolManager(bufferSize int) error {
 	return nil
 }
 
-func (this *BufferPoolManager) InsertPage(page *structType.Page) int {
+func (this *BufferPoolManager) InsertPage(page *structType.Page, GlobalDiskManager *diskMgr.DiskManager) int {
 	if len(this.pages) != cap(this.pages) {
 		idx := len(this.pages)
 		this.pages = append(this.pages, *page)
@@ -40,7 +40,7 @@ func (this *BufferPoolManager) InsertPage(page *structType.Page) int {
 	var id msg.PageId
 	if this.replacer_.Evict(&id) == msg.Success {
 		pair := this.pageTable.Query(id)
-		err := this.swapPage(pair.Second.(msg.FrameId), page)
+		err := this.swapPage(pair.Second.(msg.FrameId), page, GlobalDiskManager)
 		if err != nil {
 			return msg.NotFoundEvictable
 		}
@@ -48,9 +48,9 @@ func (this *BufferPoolManager) InsertPage(page *structType.Page) int {
 	return msg.Success
 }
 
-func (this *BufferPoolManager) swapPage(frameId msg.FrameId, newPage *structType.Page) error {
+func (this *BufferPoolManager) swapPage(frameId msg.FrameId, newPage *structType.Page, GlobalDiskManager *diskMgr.DiskManager) error {
 	oldPage := this.pages[frameId]
-	_, err := diskMgr.GlobalDiskManager.WritePage(msg.PageId(oldPage.GetPageId()), &oldPage)
+	_, err := GlobalDiskManager.WritePage(msg.PageId(oldPage.GetPageId()), &oldPage)
 	if err != nil {
 		s := fmt.Sprint("can not swap the page {", oldPage.GetPageId(), "}")
 		return errors.New(s)

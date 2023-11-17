@@ -13,14 +13,12 @@ type PageManager struct {
 	initPage     *InitPage
 }
 
-var GlobalPageManager PageManager
-
-func NewPageManager(initState msg.PageId, page *InitPage) error {
-	GlobalPageManager = PageManager{
+func NewPageManager(initState msg.PageId, page *InitPage) (*PageManager, error) {
+	GlobalPageManager := PageManager{
 		GetNewPageId: NewPageId(initState),
 		initPage:     page,
 	}
-	return nil
+	return &GlobalPageManager, nil
 }
 
 // NewPageId 获取一个新的pageId
@@ -90,42 +88,90 @@ func (this *PageManager) InsertTuple(page structType.Page, value []byte) error {
 	return nil
 }
 
-// 用于将超过单页大小的数据分段
-func (this *PageManager) insertMultipleData(page structType.Page, value []byte, tupleSize int, GlobalDiskManager diskMgr.DiskManager) error {
-	insertSize := msg.PageRemainSize / tupleSize * tupleSize
-	var newPage *structType.Page
-	if len(value) > insertSize { // 当前插入的数据长度大于页中可存储大小，需要链接上新页
-		if page.GetNextPageId() == -1 {
-			newPage = this.CreateNextPage(page)
-		} else {
-			var err error
-			pageValue, err := diskMgr.GlobalDiskManager.GetPageById(page.GetNextPageId())
+// InsertMultipleDataForTable 用于将整个表插入内存中，new后或者修改表结构使用
+func (this *PageManager) InsertMultipleDataForTable(page structType.Page, value []byte, headSize int, recordSize int, GlobalDiskManager *diskMgr.DiskManager) error {
+	recordSize++ // 对于插入来说每一个记录多了1B的flag，这个flag不写到record对象里，所以只在这里+1
+	if (len(value)-headSize)%recordSize != 0 {
+		return errors.New("headSize error")
+	}
+	if msg.PageRemainSize >= len(value) {
+		err := this.insertDataAndToDisk(page, value, GlobalDiskManager)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	//先处理表头
+	head := make([]byte, 0, msg.PageRemainSize)
+	head = append(head, value[:headSize]...)
+	value = value[headSize:]
+	//头数据1页放不下，或者放完数据后不能再放下一个record
+	for len(head) > msg.PageRemainSize || msg.PageRemainSize-len(head) < recordSize {
+		err := this.insertDataAndToDisk(page, head[:msg.PageRemainSize], GlobalDiskManager)
+		if err != nil {
+			return err
+		}
+		head = head[:msg.PageRemainSize]
+		nextPage, err := this.GetNextPage(page, GlobalDiskManager)
+		if err != nil {
+			return err
+		}
+		page = *nextPage
+	}
+	//处理到这table的头已经可以在1页中放下了，需要处理头数据+一些record数据的情况，此时必然可以放下至少一个record
+	remainSize := msg.PageRemainSize - len(head)
+	recordNum := remainSize / recordSize
+	head = append(head, value[:recordNum*recordSize]...)
+	value = value[recordNum*recordSize:]
+	err := this.insertDataAndToDisk(page, head, GlobalDiskManager)
+	if err != nil {
+		return err
+	}
+	nextPage, err := this.GetNextPage(page, GlobalDiskManager)
+	if err != nil {
+		return err
+	}
+	page = *nextPage
+	//已经处理完包括头文件的所有数据，下面的数据只有record
+	for {
+		if len(value) <= msg.PageRemainSize {
+			err := this.insertDataAndToDisk(page, value, GlobalDiskManager)
 			if err != nil {
 				return err
 			}
-			newPage = pageValue
+			return nil
 		}
-		page.SetNextPageId(newPage.GetPageId())
+		err := this.insertDataAndToDisk(page, value[:msg.PageRemainSize], GlobalDiskManager)
+		if err != nil {
+			return err
+		}
+		value = value[msg.PageRemainSize:]
+		nextPage, err := this.GetNextPage(page, GlobalDiskManager)
+		if err != nil {
+			return err
+		}
+		page = *nextPage
 	}
-	err := this.InsertDataAndToDisk(page, value[:insertSize], tupleSize, GlobalDiskManager)
-	value = value[insertSize:]
-	if err != nil {
-		return err
-	}
-	// 利用递归进行增加page和插入数据操作
-	err = this.InsertDataAndToDisk(*newPage, value, tupleSize, GlobalDiskManager)
-	if err != nil {
-		return err
-	} // 直接写入disk中
-	//err = this.ToDisk()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func (this *PageManager) ToDisk(page structType.Page, GlobalDiskManager diskMgr.DiskManager) error {
+func (this *PageManager) GetNextPage(page structType.Page, GlobalDiskManager *diskMgr.DiskManager) (*structType.Page, error) {
+	var newPage *structType.Page
+	if page.GetNextPageId() == -1 {
+		newPage = this.CreateNextPage(page)
+	} else {
+		var err error
+		pageValue, err := GlobalDiskManager.GetPageById(page.GetNextPageId())
+		if err != nil {
+			return nil, err
+		}
+		newPage = pageValue
+	}
+	nextID := newPage.GetPageId()
+	page.SetNextPageId(nextID)
+	return newPage, nil
+}
+
+func (this *PageManager) ToDisk(page structType.Page, GlobalDiskManager *diskMgr.DiskManager) error {
 	_, err := GlobalDiskManager.WritePage(page.GetPageId(), &page)
 	if err != nil {
 		return err
@@ -133,27 +179,19 @@ func (this *PageManager) ToDisk(page structType.Page, GlobalDiskManager diskMgr.
 	return nil
 }
 
-// InsertDataAndToDisk 这里会自动写入页之后写到disk中,这里写的是一个完整的页
-func (this *PageManager) InsertDataAndToDisk(page structType.Page, value []byte, tupleSize int, GlobalDiskManager diskMgr.DiskManager) error {
+// InsertDataAndToDisk 这里会自动写入页之后写到disk中,需要提供目标页，这里写的是一个完整的页
+func (this *PageManager) insertDataAndToDisk(page structType.Page, value []byte, GlobalDiskManager *diskMgr.DiskManager) error {
 	// 如果数据长度大于容量，则调用insertMultipleData进行保存
-	if int(msg.PageRemainSize)/tupleSize*tupleSize < len(value) {
-		err := this.insertMultipleData(page, value, tupleSize, GlobalDiskManager)
-		if err != nil {
-			return err
-		}
-	} else {
-		// 不然就直接保存
-		var err error
-		data, err := utils.InsertAndReplaceAtIndex[byte](page.GetData(), 0, value)
-		if err != nil {
-			return err
-		}
-		page.SetData(data)
-		page.SetHeaderPosByOffset(uint16(len(value)))
-		err = this.ToDisk(page, GlobalDiskManager)
-		if err != nil {
-			return err
-		}
+	var err error
+	data, err := utils.InsertAndReplaceAtIndex[byte](page.GetData(), 0, value)
+	if err != nil {
+		return err
+	}
+	page.SetData(data)
+	page.SetHeaderPosByOffset(uint16(len(value)))
+	err = this.ToDisk(page, GlobalDiskManager)
+	if err != nil {
+		return err
 	}
 	return nil
 }

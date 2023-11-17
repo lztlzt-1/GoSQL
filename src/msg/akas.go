@@ -35,6 +35,7 @@ const MaxStringLength = 255
 const DiskBucketSize = 8
 const PageHeadSize = 17
 const MagicSize = 10
+const TableHeadSize = 40
 
 type FrameId int
 type PageId int

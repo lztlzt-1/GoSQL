@@ -10,31 +10,29 @@ import (
 	"strings"
 )
 
-var GlobalDiskManager DiskManager
-
 type DiskManager struct {
 	fp            *os.File // 存储DiskManager指向的文件
 	diskPageTable DiskPageTable
 }
 
 // NewDiskManager 全局只需要一个diskManager！
-func NewDiskManager(filePath string) error {
+func NewDiskManager(filePath string) (*DiskManager, error) {
 	if !utils.FileExists(filePath) {
 		initDBFile(filePath) // 进行初始化创建db文件
 	}
 	file, err := os.OpenFile(filePath, os.O_RDWR, 0660)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	GlobalDiskManager = DiskManager{
+	GlobalDiskManager := DiskManager{
 		fp:            file,
 		diskPageTable: NewDiskPageTable(msg.DiskBucketSize),
 	}
 	err = GlobalDiskManager.loadPageTable(msg.PageTableStart)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &GlobalDiskManager, nil
 }
 
 // 读页表，页表每条记录是20B的名字+4B的ID（偏移量）

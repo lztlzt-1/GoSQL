@@ -49,7 +49,7 @@ func ReadBytesFromPosition(data []byte, pos int, length int) ([]byte, error) {
 }
 
 // FastPow 快速幂，求value^N
-func FastPow[T int | float64 | int32](value T, N int) T {
+func FastPow[T int | float64 | int32 | int64](value T, N int) T {
 	base := value
 	var res T = 1
 	for N != 0 {

@@ -140,3 +140,17 @@ func Bytes2Any(bytes []byte, itsType string) any {
 		return nil
 	}
 }
+func Int642Bytes(value int64) []byte {
+	byteSlice := make([]byte, 8) // 64位整数占8个字节
+	for i := uint(0); i < 8; i++ {
+		byteSlice[i] = byte(value >> (i * 8) & 0xFF)
+	}
+	return byteSlice
+}
+func Bytes2Int64(byteSlice []byte) int64 {
+	var value int64
+	for i := uint(0); i < 8; i++ {
+		value |= int64(byteSlice[i]) << (i * 8)
+	}
+	return value
+}

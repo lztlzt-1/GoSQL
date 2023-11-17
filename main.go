@@ -7,6 +7,11 @@ func main() {
 	//file.Write(bytes)
 	//file.Close()
 	Test()
+	//d := utils.FastPow[int64](2, 50)
+	//bytes := utils.Int642Bytes(d)
+	//fmt.Println(bytes)
+	//d = utils.Bytes2Int64(bytes)
+	//fmt.Println(d)
 	//fmt.Println("123")
 	//bytes := []byte{0xff, 0xff, 0xff, 0xff}
 	//fmt.Println(utils.Bytes2Int(bytes))
