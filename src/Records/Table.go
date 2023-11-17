@@ -23,7 +23,7 @@ type Table struct {
 	Length     int        // todo: 可能能利用这个懒读取
 	ColumnSize int
 	RecordSize int
-	FreeSpace  int64
+	FreeSpace  msg.FreeSpaceTypeInTable
 	Column     []Column
 	Records    []structType.Record
 	NextPageID msg.PageId // 这个不用存进disk里，页的头里面包含了，表示这个表的下一页
@@ -62,12 +62,13 @@ func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr
 		recordSize += size
 		column = append(column, Column{Name: name, ItsType: itsType})
 	}
-	newID := pageManager.GetNewPageId()
-	err = GlobalDiskManager.InsertTableToTablePage(name, newID)
-	if err != nil {
-		return nil, err
-	}
-	table := Table{PageId: -1, Name: name, ColumnSize: len(column), NextPageID: -1, HeadPageID: -1, Column: column, Length: 0, RecordSize: recordSize}
+	//newID := utils.GetNewPageId()
+
+	//err = GlobalDiskManager.InsertTableToTablePage(name, newID)
+	//if err != nil {
+	//	return nil, err
+	//}
+	table := Table{PageId: -1, Name: name, ColumnSize: len(column), NextPageID: -1, HeadPageID: -1, Column: column, Length: 0, RecordSize: recordSize, FreeSpace: -1}
 	*tableList = append(*tableList, &table)
 	return &table, nil
 }
@@ -251,7 +252,7 @@ func (this *Table) ToDisk(GlobalDiskManager *diskMgr.DiskManager, GlobalPageMana
 	bytes = append(bytes, temp...)
 	temp = utils.Int2Bytes(this.RecordSize)
 	bytes = append(bytes, temp...)
-	temp = utils.Int642Bytes(this.FreeSpace)
+	temp = utils.Int642Bytes(int64(this.FreeSpace))
 	bytes = append(bytes, temp...)
 	for i := 0; i < this.ColumnSize; i++ {
 		columnBytes := make([]byte, 0, msg.RecordNameLength+msg.RecordTypeSize)
@@ -273,6 +274,10 @@ func (this *Table) ToDisk(GlobalDiskManager *diskMgr.DiskManager, GlobalPageMana
 	var page *structType.Page
 	if this.PageId == -1 {
 		page = GlobalPageManager.NewPage()
+		err := GlobalDiskManager.InsertTableToTablePage(this.Name, page.GetPageId())
+		if err != nil {
+			return err
+		}
 	} else {
 		page, err = GlobalDiskManager.GetPageById(this.PageId)
 		if err != nil {

@@ -68,48 +68,55 @@ func (this *DiskManager) InsertTableToTablePage(name string, id msg.PageId) erro
 	return nil
 }
 
+// DumpPageTable 页表格式：2B第一个空闲位置偏移量，中间是n个tableName20B+pageID4B+有效位1b，末尾是4B下一页pageID
 func (this *DiskManager) DumpPageTable() error {
 	buckets := this.diskPageTable.hash.GetAllBuckets()
 	length := len(buckets)
-	sizeInOnePage := msg.PageSize / (msg.TableNameLength + msg.PageIDSize)
+	sizeInOnePage := (msg.PageSize - msg.FreeSpaceSizeInPageTable - msg.PageIDSize) / (msg.TableNameLength + msg.PageIDSize + 1)
 	bytes := make([]byte, 0, msg.PageSize)
-	pos := 0
-	tablePage := 1
+	bytes = append(bytes, utils.Int162Bytes(-1)...)
+	tablePage := msg.PageId(1)
 	for i := 0; i < length; i++ {
 		if i%sizeInOnePage == 0 && i != 0 {
-			_, err := this.fp.Seek(int64(tablePage), 0)
+			_, err := this.fp.Seek(int64(tablePage)*msg.PageSize, 0)
 			if err != nil {
 				return err
 			}
+			blankSize := msg.PageSize - msg.PageIDSize - len(bytes)
+			bytes = append(bytes, make([]byte, blankSize)...)
 			_, err = this.fp.Write(bytes)
 			if err != nil {
 				return err
 			}
+			tablePage = utils.GetNewPageId()
+			_, err = this.fp.Write(utils.Int2Bytes(int(tablePage)))
+			if err != nil {
+				return err
+			}
 			bytes = bytes[:0]
-			tablePage++
 		}
-		var err error
 		name := []byte(buckets[i].First.(string))
 		name = utils.FixSliceLength(name, msg.TableNameLength)
 		bytes = append(bytes, name...)
-		if err != nil {
-			return err
-		}
-		pos += msg.TableNameLength
 		bytes = append(bytes, utils.Int2Bytes(int(buckets[i].Second.(msg.PageId)))...)
-		if err != nil {
-			return err
-		}
-		pos += msg.PageIDSize
+		bytes = append(bytes, utils.Bool2Bytes(true)...) //标志位
 	}
 	_, err := this.fp.Seek(int64(tablePage)*msg.PageSize, 0)
 	if err != nil {
 		return err
 	}
+	blankSize := msg.PageSize - msg.PageIDSize - len(bytes)
+	bytes = append(bytes, make([]byte, blankSize)...)
 	_, err = this.fp.Write(bytes)
 	if err != nil {
 		return err
 	}
+	tablePage = -1
+	_, err = this.fp.Write(utils.Int2Bytes(int(tablePage)))
+	if err != nil {
+		return err
+	}
+	bytes = bytes[:0]
 	return nil
 }
 
@@ -140,7 +147,7 @@ func initDBFile(filePath string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_, err = file.Write(utils.Int2Bytes(0))
+	_, err = file.Write(utils.Int2Bytes(1))
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -37,6 +37,14 @@ const PageHeadSize = 17
 const MagicSize = 10
 const TableHeadSize = 40
 
+type FreeSpaceTypeInTable int64
+
+const FreeSpaceSizeInTable = 8
+
+type FreeSpaceTypeInPageTable int16
+
+const FreeSpaceSizeInPageTable = 2
+
 type FrameId int
 type PageId int
 

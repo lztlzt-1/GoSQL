@@ -9,30 +9,14 @@ import (
 )
 
 type PageManager struct {
-	GetNewPageId func() msg.PageId
-	initPage     *InitPage
+	initPage *InitPage
 }
 
 func NewPageManager(initState msg.PageId, page *InitPage) (*PageManager, error) {
 	GlobalPageManager := PageManager{
-		GetNewPageId: NewPageId(initState),
-		initPage:     page,
+		initPage: page,
 	}
 	return &GlobalPageManager, nil
-}
-
-// NewPageId 获取一个新的pageId
-func NewPageId(initState msg.PageId) func() msg.PageId {
-	generatePageId := func(state any) any {
-		cur := state.(msg.PageId)
-		cur = cur + 1
-		return cur
-	}
-	pageGenerator := utils.LazyGenerator(generatePageId, initState)
-	return func() msg.PageId {
-		initState = pageGenerator().(msg.PageId)
-		return initState
-	}
 }
 
 func (this *PageManager) GetInitPage() *InitPage {
@@ -41,7 +25,7 @@ func (this *PageManager) GetInitPage() *InitPage {
 
 // NewPage 生成一个新页,返回指针
 func (this *PageManager) NewPage() *structType.Page {
-	pageId := this.GetNewPageId()
+	pageId := utils.GetNewPageId()
 	page := new(structType.Page)
 	page.SetPageId(pageId)
 	page.SetPinCount(0)
