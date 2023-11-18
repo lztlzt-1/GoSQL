@@ -101,7 +101,7 @@ func (this *ExtendibleHash) indexOf(key any) int {
 
 // Query hash中查询键值key的pair
 func (this *ExtendibleHash) Query(key any) *utils.Pair {
-	idx := this.indexOf(utils.GetHashValueSHA256ToInt(key))
+	idx := this.indexOf(key)
 	bucket1 := this.buckets[idx]
 	return bucket1.Query(key)
 }

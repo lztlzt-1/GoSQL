@@ -45,6 +45,10 @@ func (this *DiskManager) loadPageTable(id msg.PageId) error {
 	pos := msg.FreeSpaceSizeInPageTable
 	for i := 0; i < msg.PageSize/(msg.TableNameLength+msg.PageIDSize+1); i++ {
 		tableName := string(utils.RemoveTrailingNullBytes(bytes[pos : pos+msg.TableNameLength]))
+		if tableName == "test222" {
+			d := 1
+			print(d)
+		}
 		pageID := utils.Bytes2Int(bytes[pos+msg.TableNameLength : pos+msg.TableNameLength+msg.PageIDSize])
 		flag := utils.Bytes2Bool(bytes[pos+msg.TableNameLength+msg.PageIDSize : pos+msg.TableNameLength+msg.PageIDSize+1])
 		if flag == true {

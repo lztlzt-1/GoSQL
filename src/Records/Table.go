@@ -309,7 +309,7 @@ func (this *Table) LoadDataFromPage(page *structType.Page) error {
 	this.Length = utils.Bytes2Int(length)
 	this.ColumnSize = utils.Bytes2Int(columnSize)
 	this.RecordSize = utils.Bytes2Int(recordSize)
-	pos := msg.TableNameLength + 3*msg.IntSize
+	pos := msg.TableNameLength + 3*msg.IntSize + msg.FreeSpaceSizeInTable
 	var columns []Column
 	for i := 0; i < this.ColumnSize; i++ {
 		name := string(utils.RemoveTrailingNullBytes(bytes[pos : pos+msg.RecordNameLength]))

@@ -79,16 +79,6 @@ func HashValueSHA256(value any) []byte {
 	return hasher.Sum(nil)
 }
 
-// GetHashValueSHA256ToUint32 对于一个值求hash并取前4B
-func GetHashValueSHA256ToUint32(value any) uint32 {
-	v := HashValueSHA256(value)
-	bytes, err := ReadBytesFromPosition(v, 0, 4)
-	if err != nil {
-		return 0
-	}
-	return Bytes2Uint32(bytes)
-}
-
 // GetHashValueSHA256ToInt 对于一个值求hash并取前4B
 func GetHashValueSHA256ToInt(value any) int {
 	v := HashValueSHA256(value)
