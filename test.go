@@ -1,13 +1,11 @@
 package main
 
 import (
-	"GoSQL/src/Factory"
 	"GoSQL/src/Records"
 	"GoSQL/src/buffer"
 	"GoSQL/src/msg"
 	"GoSQL/src/storage/diskMgr"
 	"GoSQL/src/storage/pageMgr"
-	"GoSQL/src/utils"
 	"log"
 )
 
@@ -23,8 +21,7 @@ func Init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	initPage := pageMgr.GetInitPage(GlobalDiskManager)
-	utils.GetNewPageId = utils.NewPageId(initPage.GetInitPageID())
+	initPage := diskMgr.GetInitPage(GlobalDiskManager)
 	err = buffer.NewBufferPoolManager(8)
 	if err != nil {
 		log.Fatal(err)
@@ -41,20 +38,24 @@ func Init() {
 func Test() {
 	Init()
 	defer func() {
-		//for _, item := range *tableList {
-		//	err := (*item).ToDisk(GlobalDiskManager, GlobalPageManager)
-		//	if err != nil {
-		//		log.Fatal(err)
-		//	}
-		//}
-		//err := GlobalDiskManager.DumpPageTable()
-		//if err != nil {
-		//	return
-		//}
-		//err = GlobalPageManager.GetInitPage().SetInitPageToDisk(GlobalDiskManager)
-		//if err != nil {
-		//	log.Fatal(err)
-		//}
+		for _, item := range *tableList {
+			if item.Name == "test222" {
+				d := 1
+				print(d)
+			}
+			err := (*item).ToDisk(GlobalDiskManager, GlobalPageManager)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		err := GlobalDiskManager.DumpPageTable()
+		if err != nil {
+			return
+		}
+		err = GlobalPageManager.GetInitPage().SetInitPageToDisk(GlobalDiskManager)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}()
 	// 上面是持久化的固定操作
 	//for i := 0; i < 300; i++ {
@@ -65,15 +66,15 @@ func Test() {
 	//	}
 	//	tanle1.Insert("hdu 7")
 	//}
-	//table, err := Records.NewTable("test222", "schoolName string classNum int", tableList, GlobalPageManager, GlobalDiskManager)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	table, err := Factory.LoadTableByName("test222", GlobalDiskManager, tableList)
+	table, err := Records.NewTable("test222", "schoolName string classNum int", tableList, GlobalPageManager, GlobalDiskManager)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for i := 0; i < 30; i++ {
+	//table, err := Records.LoadTableByName("test222", GlobalDiskManager, tableList)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	for i := 0; i < 60; i++ {
 		err = table.Insert("hdu 7")
 	}
 

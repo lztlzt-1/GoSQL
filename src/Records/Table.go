@@ -26,9 +26,28 @@ type Table struct {
 	FreeSpace  msg.FreeSpaceTypeInTable
 	Column     []Column
 	Records    []structType.Record
-	NextPageID msg.PageId // 这个不用存进disk里，页的头里面包含了，表示这个表的下一页
+	NextPageID msg.PageId // 这个不用存进disk里，页的头里面包含了，表示这个表下一页
 	HeadPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
 	//StartPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
+}
+
+func LoadTableByName(name string, diskManager *diskMgr.DiskManager, tableList *[]*Table) (*Table, error) {
+	table := Table{}
+	pageId, err := diskManager.FindPageIdByName(name)
+	table.PageId = pageId
+	if err != nil {
+		return nil, err
+	}
+	page, err := diskManager.GetPageById(pageId)
+	if err != nil {
+		return nil, err
+	}
+	err = table.LoadDataFromPage(page)
+	if err != nil {
+		return nil, err
+	}
+	*tableList = append(*tableList, &table)
+	return &table, nil
 }
 
 // NewTable 创建一个新的表，名字是name，str表示“变量名1 变量名1类型 变量名2 变量名2类型”，tableList中存放它的地址
@@ -237,7 +256,7 @@ func (this *Table) Delete(keys []string, values []any) error {
 	return nil
 }
 
-func (this *Table) ToDisk(GlobalDiskManager *diskMgr.DiskManager, GlobalPageManager *pageMgr.PageManager) error {
+func (this *Table) ToDisk(diskManager *diskMgr.DiskManager, GlobalPageManager *pageMgr.PageManager) error {
 	//var pages []storage.Page
 	var bytes []byte
 	name := make([]byte, 0, msg.TableNameLength)
@@ -270,14 +289,15 @@ func (this *Table) ToDisk(GlobalDiskManager *diskMgr.DiskManager, GlobalPageMana
 	}
 	var err error
 	var page *structType.Page
+	//ID=-1表示还没有收到页，那么就分配一个
 	if this.PageId == -1 {
-		page = GlobalPageManager.NewPage()
-		err := GlobalDiskManager.InsertTableToTablePage(this.Name, page.GetPageId())
+		page = GlobalPageManager.NewPage(diskManager)
+		err := diskManager.InsertTableToTablePage(this.Name, page.GetPageId())
 		if err != nil {
 			return err
 		}
 	} else {
-		page, err = GlobalDiskManager.GetPageById(this.PageId)
+		page, err = diskManager.GetPageById(this.PageId)
 		if err != nil {
 			if err == io.EOF {
 				// 说明当前table所属的page没有被初始化
@@ -288,7 +308,7 @@ func (this *Table) ToDisk(GlobalDiskManager *diskMgr.DiskManager, GlobalPageMana
 		}
 	}
 	//对于每个表中的column，和表头一起处理，可以节省空间
-	err = GlobalPageManager.InsertMultipleDataForTable(*page, bytes, msg.TableHeadSize+this.ColumnSize*(msg.TableNameLength+msg.RecordTypeSize), this.RecordSize, GlobalDiskManager)
+	err = GlobalPageManager.InsertMultipleDataForTable(page, bytes, msg.TableHeadSize+this.ColumnSize*(msg.TableNameLength+msg.RecordTypeSize), this.RecordSize, diskManager)
 	if err != nil {
 		return err
 	}

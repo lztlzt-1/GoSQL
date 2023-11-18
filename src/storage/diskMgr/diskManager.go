@@ -12,9 +12,10 @@ import (
 type DiskManager struct {
 	fp            *os.File // 存储DiskManager指向的文件
 	diskPageTable DiskPageTable
+	getNewPageId  func() msg.PageId
 }
 
-// NewDiskManager 全局只需要一个diskManager！
+// NewDiskManager 全局只需要一个diskManager！扫描disk的文件并提取必要信息
 func NewDiskManager(filePath string) (*DiskManager, error) {
 	if !utils.FileExists(filePath) {
 		initDBFile(filePath) // 进行初始化创建db文件
@@ -32,6 +33,44 @@ func NewDiskManager(filePath string) (*DiskManager, error) {
 		return nil, err
 	}
 	return &GlobalDiskManager, nil
+}
+
+// NewPageId 在磁盘中分配一个空闲的pageID
+func (this *DiskManager) newPageId(initState msg.PageId) func() msg.PageId {
+	generatePageId := func(state any) any {
+		cur := state.(msg.PageId)
+		cur = cur + 1
+		return cur
+	}
+	pageGenerator := utils.LazyGenerator(generatePageId, initState)
+	return func() msg.PageId {
+		initState = pageGenerator().(msg.PageId)
+		return initState
+	}
+}
+
+func (this *DiskManager) GetNewPageId() msg.PageId {
+	id := this.getNewPageId()
+	// 只应允许从这里分配磁盘的一个页，所以直接添加末尾
+	err := this.MallocNewPageWithToEnd()
+	if err != nil {
+		return 0
+	}
+	return id
+}
+
+// 移动到文件末尾并且添加一个空页
+func (this *DiskManager) MallocNewPageWithToEnd() error {
+	_, err := this.fp.Seek(0, 2)
+	if err != nil {
+		return err
+	}
+	bytes := make([]byte, msg.PageSize)
+	_, err = this.fp.Write(bytes)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // 读页表，页表每条记录是20B的名字+4B的ID（偏移量）+1B标志位
@@ -91,7 +130,7 @@ func (this *DiskManager) DumpPageTable() error {
 			if err != nil {
 				return err
 			}
-			tablePage = utils.GetNewPageId()
+			tablePage = this.getNewPageId()
 			_, err = this.fp.Write(utils.Int2Bytes(int(tablePage)))
 			if err != nil {
 				return err
@@ -340,4 +379,48 @@ func HasFlushLogFuture() {
 
 func GetFileSize() {
 
+}
+
+// ////////////////////////////////////////////
+// 以下是初始化信息
+type InitPage struct {
+	magic      string
+	initPageID msg.PageId
+}
+
+func GetInitPage(diskManager *DiskManager) *InitPage {
+	this := InitPage{}
+	magic, err := diskManager.GetData(0, msg.MagicSize)
+	if err != nil || string(magic) != "MagicGoSQL" {
+		log.Fatal(errors.New("error: it's not a GoSQL file"))
+	}
+	this.magic = string(magic)
+	initIDBytes, err := diskManager.GetData(msg.MagicSize, msg.IntSize)
+	if err != nil {
+		log.Fatal(errors.New("error: it's not a GoSQL file"))
+	}
+	id := utils.Bytes2Int(initIDBytes)
+	this.initPageID = msg.PageId(id)
+	diskManager.getNewPageId = diskManager.newPageId(this.GetInitPageID())
+	return &this
+}
+
+func (this *InitPage) SetInitPageToDisk(GlobalDiskManager *DiskManager) error {
+	bytes := make([]byte, 0, msg.PageSize)
+	bytes = append(bytes, []byte(this.magic)...)
+	bytes = append(bytes, utils.Int2Bytes(int(this.initPageID))...)
+	bytes = utils.FixSliceLength(bytes, msg.PageSize)
+	err := GlobalDiskManager.WriteData(bytes)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *InitPage) GetInitPageID() msg.PageId {
+	return this.initPageID
+}
+
+func (this *InitPage) SetInitPageID(pageID msg.PageId) {
+	this.initPageID = pageID
 }
