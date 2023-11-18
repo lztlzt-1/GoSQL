@@ -57,10 +57,6 @@ func Test() {
 		}
 	}()
 	// 上面是持久化的固定操作
-	//for i := 0; i < 100; i++ {
-	//	d := utils.GetNewPageId()
-	//	print(d)
-	//}
 	for i := 0; i < 300; i++ {
 		str := fmt.Sprintf("test{%v}", i)
 		tanle1, err := Records.NewTable(str, "schoolName string classNum int", tableList, GlobalPageManager, GlobalDiskManager)
@@ -73,7 +69,7 @@ func Test() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//table, err := Factory.LoadTableByName("test222", diskMgr.GlobalDiskManager, &tableList)
+	//table, err := Factory.LoadTableByName("test222", GlobalDiskManager, tableList)
 	//if err != nil {
 	//	log.Fatal(err)
 	//}

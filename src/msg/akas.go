@@ -36,21 +36,15 @@ const DiskBucketSize = 2
 const PageHeadSize = 17
 const MagicSize = 10
 const TableHeadSize = 40
-
-type FreeSpaceTypeInTable int64
+const FreeSpaceSizeInPageTable = 2
+const PageIDSize = 4
+const PageTableStart = 1
 
 const FreeSpaceSizeInTable = 8
 
+type FreeSpaceTypeInTable int64
 type FreeSpaceTypeInPageTable int16
-
-const FreeSpaceSizeInPageTable = 2
-
 type FrameId int
 type PageId int
-
-const PageIDSize = 4
-
 type TimeType int64
 type ReplacerSize uint8
-
-const PageTableStart = 1

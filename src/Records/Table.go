@@ -33,11 +33,9 @@ type Table struct {
 
 // NewTable 创建一个新的表，名字是name，str表示“变量名1 变量名1类型 变量名2 变量名2类型”，tableList中存放它的地址
 func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr.PageManager, GlobalDiskManager *diskMgr.DiskManager) (*Table, error) {
-	pageId, err := GlobalDiskManager.FindPageIdByName(name)
-	if pageId != 0 {
+	pageId, _ := GlobalDiskManager.FindPageIdByName(name)
+	if pageId != -1 {
 		return nil, errors.New("the table is already exist")
-	} else if err != nil && err != io.EOF {
-		return nil, err
 	}
 	list := strings.Split(str, " ")
 	if len(list)&1 != 0 {
@@ -158,7 +156,7 @@ func (this *Table) Query(key []string, value []any, GlobalDiskManager *diskMgr.D
 		if err2 != nil {
 			return nil, err2
 		}
-		err := this.LoadDataFromPage(*newPage)
+		err := this.LoadDataFromPage(newPage)
 		if err != nil {
 			return nil, err
 		}
@@ -300,7 +298,7 @@ func (this *Table) ToDisk(GlobalDiskManager *diskMgr.DiskManager, GlobalPageMana
 }
 
 // LoadDataFromPage 将数据从page解析到表里
-func (this *Table) LoadDataFromPage(page structType.Page) error {
+func (this *Table) LoadDataFromPage(page *structType.Page) error {
 	bytes := page.GetData()
 	name := bytes[:msg.TableNameLength]
 	name = utils.RemoveTrailingNullBytes(name)

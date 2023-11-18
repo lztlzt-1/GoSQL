@@ -13,6 +13,7 @@ type bucket struct {
 
 func NewBucket(size uint8, depth uint8) bucket {
 	var list []utils.Pair
+	//list = append(list, make([]utils.Pair, size)...)
 	bucket_ := bucket{
 		size:  size,
 		depth: depth,

@@ -3,7 +3,6 @@ package diskMgr
 import (
 	"GoSQL/src/algorithm/ExtendibleHash"
 	"GoSQL/src/msg"
-	"GoSQL/src/utils"
 	"fmt"
 )
 
@@ -17,8 +16,12 @@ func NewDiskPageTable(size uint8) DiskPageTable {
 	}
 }
 
-func (this *DiskPageTable) Query(id msg.PageId) *utils.Pair {
-	return this.hash.Query(id)
+func (this *DiskPageTable) Query(name string) msg.PageId {
+	value := this.hash.Query(name)
+	if value == nil {
+		return -1
+	}
+	return value.Second.(msg.PageId)
 }
 
 func NewPageTable() DiskPageTable {
