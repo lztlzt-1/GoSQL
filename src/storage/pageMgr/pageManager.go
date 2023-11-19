@@ -98,35 +98,40 @@ func (this *PageManager) InsertMultipleDataForTable(page *structType.Page, value
 		}
 		return nil
 	}
-	//todo: 先预分配好所有页
-	//pageSum := headSize/msg.PageRemainSize + 1
-	//pageSum += 1
-	//pageSum += (len(value)-headSize)/msg.PageRemainSize + 1
-	//if page.GetPageId() != -1 {
-	//	pageSum--
-	//}
-	//var nextPages []msg.PageId
-	//for i := 0; i < pageSum; i++ {
-	//	nextPages = append(nextPages, GlobalDiskManager.GetNewPageId())
-	//}
+	//由于创建table时必然没有分配页，这里直接预分配所有页
+	pageSum := headSize/msg.PageRemainSize + 1
+	pageSum += 1
+	pageSum += (len(value)-headSize)/msg.PageRemainSize + 1
+	if page.GetPageId() != -1 {
+		pageSum--
+	}
+	var nextPages []msg.PageId
+	for i := 0; i < pageSum; i++ {
+		nextPages = append(nextPages, GlobalDiskManager.GetNewPageId())
+	}
 	//先处理表头
 	head := make([]byte, 0, msg.PageRemainSize)
 	head = append(head, value[:headSize]...)
 	value = value[headSize:]
+	page.SetNextPageId(nextPages[0])
+	nextPages = nextPages[1:]
 	//头数据1页放不下，或者放完数据后不能再放下一个record
 	for len(head) > msg.PageRemainSize || msg.PageRemainSize-len(head) < recordSize {
 		// 处理头数据，因为头数据一般不常变动，所以直接当做字节流处理，读的时候一起读掉，当修改表结构时会重新写入所有
 		// 这里总共需要分配len(head)/msg.PageRemainSize页
-		err := this.insertDataAndToDisk(page, head[:msg.PageRemainSize], GlobalDiskManager)
+		mallocSize := min(msg.PageRemainSize, headSize)
+		err := this.insertDataAndToDisk(page, head[:mallocSize], GlobalDiskManager)
 		if err != nil {
 			return err
 		}
-		head = head[:msg.PageRemainSize]
+		head = head[:mallocSize]
 		nextPage, err := this.GetNextPage(page, GlobalDiskManager)
 		if err != nil {
 			return err
 		}
 		page = nextPage
+		page.SetNextPageId(nextPages[0])
+		nextPages = nextPages[1:]
 	}
 	// 处理到这table的头已经可以在1页中放下了，需要处理头数据+一些record数据的情况，此时必然可以放下至少一个record
 	// 这里总共需要分配1页
@@ -143,6 +148,8 @@ func (this *PageManager) InsertMultipleDataForTable(page *structType.Page, value
 		return err
 	}
 	page = nextPage
+	page.SetNextPageId(nextPages[0])
+	nextPages = nextPages[1:]
 	sizeInOnePage := msg.PageRemainSize / recordSize
 	//已经处理完包括头文件的所有数据，下面的数据只有record
 	for {
@@ -164,24 +171,33 @@ func (this *PageManager) InsertMultipleDataForTable(page *structType.Page, value
 			return err
 		}
 		page = nextPage
+		page.SetNextPageId(nextPages[0])
+		nextPages = nextPages[1:]
 	}
 }
 
 func (this *PageManager) GetNextPage(page *structType.Page, diskManager *diskMgr.DiskManager) (*structType.Page, error) {
-	var newPage *structType.Page
-	if page.GetNextPageId() == -1 {
-		newPage = this.CreateNextPage(page, diskManager)
-	} else {
-		var err error
-		pageValue, err := diskManager.GetPageById(page.GetNextPageId())
-		if err != nil {
-			return nil, err
-		}
-		newPage = pageValue
+	//var newPage *structType.Page
+	nextPage, err := diskManager.GetPageById(page.GetNextPageId())
+	if err != nil {
+		return nil, err
 	}
-	nextID := newPage.GetPageId()
-	page.SetNextPageId(nextID)
-	return newPage, nil
+	if nextPage.GetPageId() == 0 {
+		nextPage = this.NewPageWithID(page.GetNextPageId())
+	}
+	//if page.GetNextPageId() == -1 {
+	//	newPage = this.CreateNextPage(page, diskManager)
+	//} else {
+	//	var err error
+	//	pageValue, err := diskManager.GetPageById(page.GetNextPageId())
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	newPage = pageValue
+	//}
+	//nextID := newPage.GetPageId()
+	//page.SetNextPageId(nextID)
+	return nextPage, nil
 }
 
 func (this *PageManager) ToDisk(page *structType.Page, GlobalDiskManager *diskMgr.DiskManager) error {
@@ -216,3 +232,11 @@ func (this *PageManager) CreateNextPage(page *structType.Page, diskManager *disk
 	newPage.SetPinCount(page.GetPinCount())
 	return newPage
 }
+
+//func (this *PageManager) InitEmptyPage(page *structType.Page, diskManager *diskMgr.DiskManager) *structType.Page {
+//	newPage := this.NewPage(diskManager)
+//	page.SetNextPageId(newPage.GetPageId())
+//	newPage.SetDirty(false)
+//	newPage.SetPinCount(page.GetPinCount())
+//	return newPage
+//}

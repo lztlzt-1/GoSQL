@@ -5,7 +5,7 @@ import (
 )
 
 type Page struct {
-	pageId      msg.PageId
+	pageId      msg.PageId // 这个也可以用作判断页有效性
 	nextPageID  msg.PageId
 	pinCount    int
 	pageHeadPos uint16 //指向头部已存数据最后一个
