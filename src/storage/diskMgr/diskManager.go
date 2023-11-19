@@ -116,7 +116,7 @@ func (this *DiskManager) DumpPageTable() error {
 	length := len(buckets)
 	sizeInOnePage := (msg.PageSize - msg.FreeSpaceSizeInPageTable - msg.PageIDSize) / (msg.TableNameLength + msg.PageIDSize + 1)
 	bytes := make([]byte, 0, msg.PageSize)
-	bytes = append(bytes, utils.Int162Bytes(-1)...)
+	bytes = append(bytes, utils.Int162Bytes(-1)...) // pageTable会统一修改，所以这个-1已经没有意义了
 	tablePage := msg.PageId(1)
 	for i := 0; i < length; i++ {
 		if i%sizeInOnePage == 0 && i != 0 {
