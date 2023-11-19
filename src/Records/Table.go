@@ -19,44 +19,25 @@ type Column struct {
 
 type Table struct {
 	PageId     msg.PageId // 这个不用存进disk里，表示这个表的起始页位置
-	Name       string     // 最多TableNameLength长度
-	Length     int        // todo: 可能能利用这个懒读取
+	CurPage    *structType.Page
+	Name       string // 最多TableNameLength长度
+	Length     int    // todo: 可能能利用这个懒读取
 	ColumnSize int
 	RecordSize int
-	FreeSpace  msg.FreeSpaceTypeInTable
-	Column     []Column
-	Records    []structType.Record
-	NextPageID msg.PageId // 这个不用存进disk里，页的头里面包含了，表示这个表下一页
-	HeadPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
+	//FreeSpacePointInPage uint16 // 指示下一个存入的在页的数据区中的地址
+	//FreeSpace            msg.FreeSpaceTypeInTable
+	Column  []Column
+	Records []structType.Record
 	//StartPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
 }
 
-func LoadTableByName(name string, diskManager *diskMgr.DiskManager, tableList *[]*Table) (*Table, error) {
-	table := Table{}
-	pageId, err := diskManager.FindPageIdByName(name)
-	table.PageId = pageId
-	if err != nil {
-		return nil, err
-	}
-	page, err := diskManager.GetPageById(pageId)
-	if err != nil {
-		return nil, err
-	}
-	err = table.LoadDataFromPage(page)
-	if err != nil {
-		return nil, err
-	}
-	*tableList = append(*tableList, &table)
-	return &table, nil
-}
-
 // NewTable 创建一个新的表，名字是name，str表示“变量名1 变量名1类型 变量名2 变量名2类型”，tableList中存放它的地址
-func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr.PageManager, GlobalDiskManager *diskMgr.DiskManager) (*Table, error) {
-	pageId, _ := GlobalDiskManager.FindPageIdByName(name)
+func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr.PageManager, diskManager *diskMgr.DiskManager) (*Table, error) {
+	pageId, _ := diskManager.FindPageIdByName(name)
 	if pageId != -1 {
 		return nil, errors.New("the table is already exist")
 	}
-	list := strings.Split(str, " ")
+	list := strings.Fields(str)
 	if len(list)&1 != 0 {
 		return nil, errors.New("invalid string, please check")
 	}
@@ -85,14 +66,57 @@ func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr
 	//if err != nil {
 	//	return nil, err
 	//}
-	table := Table{PageId: -1, Name: name, ColumnSize: len(column), NextPageID: -1, HeadPageID: -1, Column: column, Length: 0, RecordSize: recordSize, FreeSpace: -1}
+	table := Table{PageId: -1, Name: name, ColumnSize: len(column), Column: column, Length: 0, RecordSize: recordSize}
+	*tableList = append(*tableList, &table)
+	err := table.ToDiskForNewTable(diskManager, pageManager)
+	if err != nil {
+		return nil, err
+	}
+	return &table, nil
+}
+
+func LoadTableByName(name string, diskManager *diskMgr.DiskManager, tableList *[]*Table) (*Table, error) {
+	table := Table{}
+	pageId, err := diskManager.FindPageIdByName(name)
+	table.PageId = pageId
+	if err != nil {
+		return nil, err
+	}
+	page, err := diskManager.GetPageById(pageId)
+	table.CurPage = page
+	if err != nil {
+		return nil, err
+	}
+	err = table.LoadDataFromPage(page, diskManager)
+	if err != nil {
+		return nil, err
+	}
 	*tableList = append(*tableList, &table)
 	return &table, nil
 }
 
+//
+//func (this *Table)WritePageForInsert(diskManager diskMgr.DiskManager)  {
+//	if this.CurPageID==-1{
+//		this.CurPageID=this.PageId
+//	}
+//	page, err := diskManager.GetPageById(this.CurPageID)
+//	if err != nil {
+//		return
+//	}
+//	for i:=0;i<len(this.Records);i++{
+//		page.
+//	}
+//
+//}
+
 // Insert 记录的插入操作，str表示“变量1的值 变量2的值...”
-func (this *Table) Insert(str string) error {
-	items := strings.Split(str, " ")
+func (this *Table) Insert(str string, diskManager diskMgr.DiskManager) error {
+	// 如果插入数据后超过1页，则将之前的写入
+	//if msg.PageRemainSize-this.FreeSpacePointInPage<uint16(this.RecordSize){
+	//	this.
+	//}
+	items := strings.Fields(str)
 	if len(items) != len(this.Column) {
 		return errors.New("error: While inserting into Table, count is not same")
 	}
@@ -134,7 +158,7 @@ func (this *Table) queryidx(key string) (int, error) {
 }
 
 // Query 这个查询属于比较底层的，所以可以通过前面的步骤过滤到提供两个list,表示每一个key对应的value是数组里的值则拿出
-func (this *Table) Query(key []string, value []any, GlobalDiskManager *diskMgr.DiskManager, startPageIDs ...msg.PageId) ([]structType.Record, error) {
+func (this *Table) Query(key []string, value []any, diskManager *diskMgr.DiskManager, startPageIDs ...msg.PageId) ([]structType.Record, error) {
 	// 模拟默认参数
 	//var startPageID msg.PageId
 	//if len(startPageIDs) == 0 {
@@ -170,12 +194,12 @@ func (this *Table) Query(key []string, value []any, GlobalDiskManager *diskMgr.D
 		queryRecords = localRecords
 	}
 	// 递归读取下一个页的数据
-	if this.NextPageID != -1 {
-		newPage, err2 := GlobalDiskManager.GetPageById(this.NextPageID)
+	if this.CurPage.GetNextPageId() != -1 {
+		newPage, err2 := diskManager.GetPageById(this.CurPage.GetNextPageId())
 		if err2 != nil {
 			return nil, err2
 		}
-		err := this.LoadDataFromPage(newPage)
+		err := this.LoadDataFromPage(newPage, diskManager)
 		if err != nil {
 			return nil, err
 		}
@@ -256,7 +280,7 @@ func (this *Table) Delete(keys []string, values []any) error {
 	return nil
 }
 
-func (this *Table) ToDisk(diskManager *diskMgr.DiskManager, GlobalPageManager *pageMgr.PageManager) error {
+func (this *Table) ToDiskForNewTable(diskManager *diskMgr.DiskManager, GlobalPageManager *pageMgr.PageManager) error {
 	//var pages []storage.Page
 	var bytes []byte
 	name := make([]byte, 0, msg.TableNameLength)
@@ -269,8 +293,6 @@ func (this *Table) ToDisk(diskManager *diskMgr.DiskManager, GlobalPageManager *p
 	bytes = append(bytes, temp...)
 	temp = utils.Int2Bytes(this.RecordSize)
 	bytes = append(bytes, temp...)
-	temp = utils.Int642Bytes(int64(this.FreeSpace))
-	bytes = append(bytes, temp...)
 	for i := 0; i < this.ColumnSize; i++ {
 		columnBytes := make([]byte, 0, msg.RecordNameLength+msg.RecordTypeSize)
 		columnBytes = append(columnBytes, []byte(this.Column[i].Name)...)
@@ -279,15 +301,19 @@ func (this *Table) ToDisk(diskManager *diskMgr.DiskManager, GlobalPageManager *p
 		columnBytes = utils.FixSliceLength(columnBytes, msg.RecordNameLength+msg.RecordTypeSize)
 		bytes = append(bytes, columnBytes...)
 	}
-	for i := 0; i < len(this.Records); i++ {
-		recordBytes := make([]byte, 0, this.RecordSize+1)
-		recordBytes = append(recordBytes, utils.Bool2Bytes(true)...) // 多1B的标志位
-		for j := 0; j < len(this.Records[i].Value); j++ {
-			recordBytes = append(recordBytes, utils.Any2BytesForPage(this.Records[i].Value[j])...)
-		}
-		bytes = append(bytes, recordBytes...)
+	freeSpaceOff := len(bytes)
+	_, err := utils.InsertAndReplaceAtIndex(bytes, msg.TableNameLength+3*msg.IntSize, utils.Int642Bytes(int64(freeSpaceOff)))
+	if err != nil {
+		return err
 	}
-	var err error
+	//for i := 0; i < len(this.Records); i++ {
+	//	recordBytes := make([]byte, 0, this.RecordSize+1)
+	//	recordBytes = append(recordBytes, utils.Bool2Bytes(true)...) // 多1B的标志位
+	//	for j := 0; j < len(this.Records[i].Value); j++ {
+	//		recordBytes = append(recordBytes, utils.Any2BytesForPage(this.Records[i].Value[j])...)
+	//	}
+	//	bytes = append(bytes, recordBytes...)
+	//}
 	var page *structType.Page
 	//ID=-1表示还没有收到页，那么就分配一个
 	if this.PageId == -1 {
@@ -308,17 +334,18 @@ func (this *Table) ToDisk(diskManager *diskMgr.DiskManager, GlobalPageManager *p
 		}
 	}
 	//对于每个表中的column，和表头一起处理，可以节省空间
-	err = GlobalPageManager.InsertMultipleDataForTable(page, bytes, msg.TableHeadSize+this.ColumnSize*(msg.TableNameLength+msg.RecordTypeSize), this.RecordSize, diskManager)
+	_, err = GlobalPageManager.InsertMultipleDataForNewTable(page, bytes, msg.TableHeadSize+this.ColumnSize*(msg.TableNameLength+msg.RecordTypeSize), this.RecordSize, diskManager)
 	if err != nil {
 		return err
 	}
+	//this.FreeSpacePointInPage = offset
 	//_, err = storage.GlobalDiskManager.WritePage(page.GetPageId(), page)
 
 	return nil
 }
 
 // LoadDataFromPage 将数据从page解析到表里
-func (this *Table) LoadDataFromPage(page *structType.Page) error {
+func (this *Table) LoadDataFromPage(page *structType.Page, diskManager *diskMgr.DiskManager) error {
 	bytes := page.GetData()
 	name := bytes[:msg.TableNameLength]
 	name = utils.RemoveTrailingNullBytes(name)
@@ -329,6 +356,14 @@ func (this *Table) LoadDataFromPage(page *structType.Page) error {
 	this.Length = utils.Bytes2Int(length)
 	this.ColumnSize = utils.Bytes2Int(columnSize)
 	this.RecordSize = utils.Bytes2Int(recordSize)
+	for i := 0; i < (msg.TableNameLength+3*msg.IntSize+msg.FreeSpaceSizeInTable+this.ColumnSize*(msg.RecordNameLength+msg.RecordTypeSize))/msg.PageRemainSize; i++ {
+		var err error
+		page, err = diskManager.GetPageById(page.GetNextPageId())
+		if err != nil {
+			return err
+		}
+		bytes = append(bytes, page.GetData()...)
+	}
 	pos := msg.TableNameLength + 3*msg.IntSize + msg.FreeSpaceSizeInTable
 	var columns []Column
 	for i := 0; i < this.ColumnSize; i++ {
@@ -356,9 +391,9 @@ func (this *Table) LoadDataFromPage(page *structType.Page) error {
 		records = append(records, record)
 	}
 	this.Records = records
-	if this.NextPageID == -1 {
-		this.NextPageID = page.GetNextPageId()
-	}
+	//if page.GetNextPageId() != -1 {
+	//	this.NextPageID = page.GetNextPageId()
+	//}
 
 	return nil
 }

@@ -7,7 +7,6 @@
   * string
   * int64(long)
   * float64(double)
-
 * 范围：
 * 面向总共存储1TB的数据，可扩展，但直接增加到TB以上可能会有问题
 * 每个记录至少6B，方便进行内存回收。
@@ -107,4 +106,30 @@ type bufferPoolManager struct {
 #### 表管理
 
 ##### table 表
+
+```go
+type Column struct {
+	Name    string
+	ItsType string
+}
+
+type Table struct {
+	PageId     msg.PageId // 这个不用存进disk里，表示这个表的起始页位置
+	Name       string     // 最多TableNameLength长度
+	Length     int        // todo: 可能能利用这个懒读取
+	ColumnSize int
+	RecordSize int
+	FreeSpace  msg.FreeSpaceTypeInTable
+	Column     []Column
+	Records    []structType.Record
+	NextPageID msg.PageId // 这个不用存进disk里，页的头里面包含了，表示这个表下一页
+	HeadPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
+	//StartPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
+}
+```
+
+
+
+* 在创建表的同时直接将表写入内存
+* 在插入数据判断时判断到已经满一页则进行插入页
 

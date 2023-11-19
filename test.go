@@ -6,6 +6,7 @@ import (
 	"GoSQL/src/msg"
 	"GoSQL/src/storage/diskMgr"
 	"GoSQL/src/storage/pageMgr"
+	"fmt"
 	"log"
 )
 
@@ -38,16 +39,16 @@ func Init() {
 func Test() {
 	Init()
 	defer func() {
-		for _, item := range *tableList {
-			if item.Name == "test222" {
-				d := 1
-				print(d)
-			}
-			err := (*item).ToDisk(GlobalDiskManager, GlobalPageManager)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
+		//for _, item := range *tableList {
+		//	if item.Name == "test222" {
+		//		d := 1
+		//		print(d)
+		//	}
+		//	err := (*item).ToDisk(GlobalDiskManager, GlobalPageManager)
+		//	if err != nil {
+		//		log.Fatal(err)
+		//	}
+		//}
 		err := GlobalDiskManager.DumpPageTable()
 		if err != nil {
 			return
@@ -66,7 +67,11 @@ func Test() {
 	//	}
 	//	tanle1.Insert("hdu 7")
 	//}
-	table, err := Records.NewTable("test222", "schoolName string classNum int", tableList, GlobalPageManager, GlobalDiskManager)
+	str := ""
+	for i := 0; i < 200; i++ {
+		str += fmt.Sprint("test", i, " int ")
+	}
+	table, err := Records.NewTable("test222", str, tableList, GlobalPageManager, GlobalDiskManager)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,9 +79,19 @@ func Test() {
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
-	for i := 0; i < 60; i++ {
-		err = table.Insert("hdu 7")
-	}
+	fmt.Println(table)
+	//str := ""
+	//for i := 0; i < 200; i++ {
+	//	str += fmt.Sprint(i, " ")
+	//}
+	//for i := 0; i < 60; i++ {
+	//	if table.RecordSize<msg.PageRemainSize{
+	//		err = table.Insert(str)
+	//	}else {
+	//		// todo: 当一个记录超过1页
+	//	}
+	//
+	//}
 
 	if err != nil {
 		return

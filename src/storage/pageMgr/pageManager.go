@@ -52,6 +52,7 @@ func (this *PageManager) NewPageWithID(id msg.PageId) *structType.Page {
 	pageId := id
 	page := new(structType.Page)
 	page.SetPageId(pageId)
+	page.SetNextPageId(-1)
 	page.SetPinCount(0)
 	page.SetDirty(false)
 	page.SetTailPos(msg.PageRemainSize - 1)
@@ -85,95 +86,97 @@ func (this *PageManager) InsertTuple(page structType.Page, value []byte) error {
 	return nil
 }
 
-// InsertMultipleDataForTable 用于将整个表插入内存中，new后或者修改表结构使用
-func (this *PageManager) InsertMultipleDataForTable(page *structType.Page, value []byte, headSize int, recordSize int, GlobalDiskManager *diskMgr.DiskManager) error {
+// InsertMultipleDataForNewTable 用于将整个表插入内存中，new后或者修改表结构使用
+func (this *PageManager) InsertMultipleDataForNewTable(page *structType.Page, value []byte, headSize int, recordSize int, diskManager *diskMgr.DiskManager) (int16, error) {
 	recordSize++ // 对于插入来说每一个记录多了1B的flag，这个flag不写到record对象里，所以只在这里+1
 	if (len(value)-headSize)%recordSize != 0 {
-		return errors.New("headSize error")
+		return 0, errors.New("headSize error")
 	}
 	if msg.PageRemainSize >= len(value) {
-		err := this.insertDataAndToDisk(page, value, GlobalDiskManager)
+		err := this.insertDataAndToDisk(page, value, diskManager)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		return nil
+		return page.GetHeaderPos(), nil
 	}
 	//由于创建table时必然没有分配页，这里直接预分配所有页
 	pageSum := headSize/msg.PageRemainSize + 1
-	pageSum += 1
-	pageSum += (len(value)-headSize)/msg.PageRemainSize + 1
 	if page.GetPageId() != -1 {
 		pageSum--
 	}
 	var nextPages []msg.PageId
 	for i := 0; i < pageSum; i++ {
-		nextPages = append(nextPages, GlobalDiskManager.GetNewPageId())
+		nextPages = append(nextPages, diskManager.GetNewPageId())
 	}
 	//先处理表头
 	head := make([]byte, 0, msg.PageRemainSize)
 	head = append(head, value[:headSize]...)
 	value = value[headSize:]
-	page.SetNextPageId(nextPages[0])
-	nextPages = nextPages[1:]
+
 	//头数据1页放不下，或者放完数据后不能再放下一个record
-	for len(head) > msg.PageRemainSize || msg.PageRemainSize-len(head) < recordSize {
+	for len(nextPages) > 0 {
+		page.SetNextPageId(nextPages[0])
+		nextPages = nextPages[1:]
 		// 处理头数据，因为头数据一般不常变动，所以直接当做字节流处理，读的时候一起读掉，当修改表结构时会重新写入所有
 		// 这里总共需要分配len(head)/msg.PageRemainSize页
 		mallocSize := min(msg.PageRemainSize, headSize)
-		err := this.insertDataAndToDisk(page, head[:mallocSize], GlobalDiskManager)
+
+		err := this.insertDataAndToDisk(page, head[:mallocSize], diskManager)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		head = head[:mallocSize]
-		nextPage, err := this.GetNextPage(page, GlobalDiskManager)
+		head = head[mallocSize:]
+		nextPage, err := this.GetNextPage(page, diskManager)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		page = nextPage
-		page.SetNextPageId(nextPages[0])
-		nextPages = nextPages[1:]
 	}
 	// 处理到这table的头已经可以在1页中放下了，需要处理头数据+一些record数据的情况，此时必然可以放下至少一个record
 	// 这里总共需要分配1页
-	remainSize := msg.PageRemainSize - len(head)
-	recordNum := remainSize / recordSize
-	head = append(head, value[:recordNum*recordSize]...)
-	value = value[recordNum*recordSize:]
-	err := this.insertDataAndToDisk(page, head, GlobalDiskManager)
+	page.SetFreeSpace(msg.FreeSpaceTypeInTable(page.GetHeaderPos()))
+	err := this.insertDataAndToDisk(page, head, diskManager)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	nextPage, err := this.GetNextPage(page, GlobalDiskManager)
-	if err != nil {
-		return err
-	}
-	page = nextPage
-	page.SetNextPageId(nextPages[0])
-	nextPages = nextPages[1:]
-	sizeInOnePage := msg.PageRemainSize / recordSize
-	//已经处理完包括头文件的所有数据，下面的数据只有record
-	for {
-		// 这里总共⌈len(value)/(sizeInOnePage*recordSize)⌉个page，其中len(value)=len(value)-headSize
-		if len(value) <= msg.PageRemainSize {
-			err := this.insertDataAndToDisk(page, value, GlobalDiskManager)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-		err := this.insertDataAndToDisk(page, value[:sizeInOnePage*recordSize], GlobalDiskManager)
-		if err != nil {
-			return err
-		}
-		value = value[sizeInOnePage*recordSize:]
-		nextPage, err := this.GetNextPage(page, GlobalDiskManager)
-		if err != nil {
-			return err
-		}
-		page = nextPage
-		page.SetNextPageId(nextPages[0])
-		nextPages = nextPages[1:]
-	}
+	return page.GetHeaderPos(), nil
+	//remainSize := msg.PageRemainSize - len(head)
+	//recordNum := remainSize / recordSize
+	//head = append(head, value[:recordNum*recordSize]...)
+	//value = value[recordNum*recordSize:]
+	//
+	//nextPage, err := this.GetNextPage(page, diskManager)
+	//if err != nil {
+	//	return err
+	//}
+	//page = nextPage
+	//page.SetNextPageId(nextPages[0])
+	//nextPages = nextPages[1:]
+	//sizeInOnePage := msg.PageRemainSize / recordSize
+	////已经处理完包括头文件的所有数据，下面的数据只有record
+	//for {
+	//	// 这里总共⌈len(value)/(sizeInOnePage*recordSize)⌉个page，其中len(value)=len(value)-headSize
+	//	if len(value) <= msg.PageRemainSize {
+	//		err := this.insertDataAndToDisk(page, value, diskManager)
+	//		if err != nil {
+	//			return err
+	//		}
+	//		diskManager.SetFreePageID(nextPages...)
+	//		return nil
+	//	}
+	//	err := this.insertDataAndToDisk(page, value[:sizeInOnePage*recordSize], diskManager)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	value = value[sizeInOnePage*recordSize:]
+	//	nextPage, err := this.GetNextPage(page, diskManager)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	page = nextPage
+	//	page.SetNextPageId(nextPages[0])
+	//	nextPages = nextPages[1:]
+	//}
 }
 
 func (this *PageManager) GetNextPage(page *structType.Page, diskManager *diskMgr.DiskManager) (*structType.Page, error) {
@@ -217,7 +220,8 @@ func (this *PageManager) insertDataAndToDisk(page *structType.Page, value []byte
 		return err
 	}
 	page.SetData(data)
-	page.SetHeaderPosByOffset(uint16(len(value)))
+	page.SetHeaderPosByOffset(int16(len(value)))
+	page.SetFreeSpace(msg.FreeSpaceTypeInTable(page.GetHeaderPos()))
 	err = this.ToDisk(page, GlobalDiskManager)
 	if err != nil {
 		return err
