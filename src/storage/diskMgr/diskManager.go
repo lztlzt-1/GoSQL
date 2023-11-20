@@ -69,7 +69,7 @@ func (this *DiskManager) newPageId(initState msg.PageId) func() msg.PageId {
 func (this *DiskManager) GetNewPageId() msg.PageId {
 	id := this.getNewPageId()
 	// 只应允许从这里分配磁盘的一个页，所以直接添加末尾
-	err := this.MallocNewPageWithToEnd()
+	err := this.MallocNewPageToEnd()
 	if err != nil {
 		return 0
 	}
@@ -77,7 +77,7 @@ func (this *DiskManager) GetNewPageId() msg.PageId {
 }
 
 // 移动到文件末尾并且添加一个空页
-func (this *DiskManager) MallocNewPageWithToEnd() error {
+func (this *DiskManager) MallocNewPageToEnd() error {
 	_, err := this.fp.Seek(0, 2)
 	if err != nil {
 		return err
@@ -348,19 +348,26 @@ func (this *DiskManager) GetPageById(pageid msg.PageId) (*structType.Page, error
 	if err != nil {
 		return nil, err
 	}
-	id := utils.Bytes2Int(pageBytes[:4])
+	id := msg.PageId(utils.Bytes2Int(pageBytes[:4]))
 	nextID := utils.Bytes2Int(pageBytes[4:8])
 	if nextID == 0 {
 		nextID = -1
 	}
-	count := utils.Bytes2Int(pageBytes[8:12])
-	headPos := utils.Bytes2Int16(pageBytes[12:14])
-	tailPos := utils.Bytes2Int16(pageBytes[14:16])
-	isDirty := utils.Bytes2Bool(pageBytes[16:17])
-	bytes := pageBytes[17:]
+	freeSpace := utils.Bytes2Int16(pageBytes[8:10])
+	count := utils.Bytes2Int(pageBytes[10:14])
+	headPos := utils.Bytes2Int16(pageBytes[14:16])
+	tailPos := utils.Bytes2Int16(pageBytes[16:18])
+	isDirty := utils.Bytes2Bool(pageBytes[18:19])
+	bytes := pageBytes[19:]
+	if id == 0 {
+		id = pageid
+		nextID = -1
+		tailPos = msg.PageRemainSize - 1
+	}
 	page := structType.Page{}
 	page.SetPageId(msg.PageId(id))
 	page.SetNextPageId(msg.PageId(nextID))
+	page.SetFreeSpace(msg.FreeSpaceTypeInTable(freeSpace))
 	page.SetPinCount(count)
 	page.SetHeaderPos(headPos)
 	page.SetTailPos(tailPos)

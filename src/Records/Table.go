@@ -8,6 +8,7 @@ import (
 	"GoSQL/src/utils"
 	"errors"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -83,7 +84,6 @@ func LoadTableByName(name string, diskManager *diskMgr.DiskManager, tableList *[
 		return nil, err
 	}
 	page, err := diskManager.GetPageById(pageId)
-	table.CurPage = page
 	if err != nil {
 		return nil, err
 	}
@@ -111,16 +111,29 @@ func LoadTableByName(name string, diskManager *diskMgr.DiskManager, tableList *[
 //}
 
 // Insert 记录的插入操作，str表示“变量1的值 变量2的值...”
-func (this *Table) Insert(str string, diskManager diskMgr.DiskManager) error {
+func (this *Table) Insert(str string, diskManager *diskMgr.DiskManager) error {
 	// 如果插入数据后超过1页，则将之前的写入
-	//if msg.PageRemainSize-this.FreeSpacePointInPage<uint16(this.RecordSize){
-	//	this.
-	//}
+	if msg.PageRemainSize-int(this.CurPage.GetFreeSpace()) < this.RecordSize+1 { // 有1B的标志位
+		// 直接使用页进行写入
+		_, err := diskManager.WritePage(this.CurPage.GetPageId(), this.CurPage)
+		if err != nil {
+			return err
+		}
+		if this.CurPage.GetNextPageId() == -1 {
+			ID := diskManager.GetNewPageId()
+			this.CurPage.SetNextPageId(ID)
+		}
+		this.CurPage, err = diskManager.GetPageById(this.CurPage.GetNextPageId())
+		if err != nil {
+			return err
+		}
+	}
 	items := strings.Fields(str)
 	if len(items) != len(this.Column) {
 		return errors.New("error: While inserting into Table, count is not same")
 	}
 	record := structType.Record{}
+	bytes := make([]byte, 0)
 	//将所有传入的值转化成对应value，并检查错误
 	for i := 0; i < len(items); i++ {
 		switch this.Column[i].ItsType {
@@ -130,17 +143,32 @@ func (this *Table) Insert(str string, diskManager diskMgr.DiskManager) error {
 				return err
 			}
 			record.Value = append(record.Value, d)
+			bytes = append(bytes, utils.Int2Bytes(d)...)
 		case "bool":
 			if items[i] == "true" {
 				record.Value = append(record.Value, true)
+				bytes = append(bytes, utils.Bool2Bytes(true)...)
 			} else if items[i] == "false" {
 				record.Value = append(record.Value, false)
+				bytes = append(bytes, utils.Bool2Bytes(false)...)
 			} else {
 				return errors.New("error: While inserting into Table, expect true or false")
 			}
 		case "string":
+			if len(items[i]) > msg.StringSize {
+				log.Printf("failed insert: the string is too large")
+				return nil
+			}
 			record.Value = append(record.Value, items[i])
+			strBytes := []byte(items[i])
+			strBytes = utils.FixSliceLength(strBytes, msg.StringSize)
+			bytes = append(bytes, strBytes...)
 		}
+	}
+	bytes = append(bytes, utils.Bool2Bytes(true)...) // 1B标志位
+	_, err := this.CurPage.InsertDataToFreeSpace(bytes)
+	if err != nil {
+		return err
 	}
 	this.Records = append(this.Records, record)
 	this.Length++
@@ -293,6 +321,9 @@ func (this *Table) ToDiskForNewTable(diskManager *diskMgr.DiskManager, GlobalPag
 	bytes = append(bytes, temp...)
 	temp = utils.Int2Bytes(this.RecordSize)
 	bytes = append(bytes, temp...)
+	freeSpaceOff := 0
+	temp = utils.Int162Bytes(0)
+	bytes = append(bytes, temp...)
 	for i := 0; i < this.ColumnSize; i++ {
 		columnBytes := make([]byte, 0, msg.RecordNameLength+msg.RecordTypeSize)
 		columnBytes = append(columnBytes, []byte(this.Column[i].Name)...)
@@ -301,11 +332,11 @@ func (this *Table) ToDiskForNewTable(diskManager *diskMgr.DiskManager, GlobalPag
 		columnBytes = utils.FixSliceLength(columnBytes, msg.RecordNameLength+msg.RecordTypeSize)
 		bytes = append(bytes, columnBytes...)
 	}
-	freeSpaceOff := len(bytes)
-	_, err := utils.InsertAndReplaceAtIndex(bytes, msg.TableNameLength+3*msg.IntSize, utils.Int642Bytes(int64(freeSpaceOff)))
-	if err != nil {
-		return err
-	}
+	freeSpaceOff = len(bytes)
+	_, err := utils.InsertAndReplaceAtIndex(bytes, msg.TableNameLength+3*msg.IntSize, utils.Int162Bytes(int16(freeSpaceOff)))
+	//if err != nil {
+	//	return err
+	//}
 	//for i := 0; i < len(this.Records); i++ {
 	//	recordBytes := make([]byte, 0, this.RecordSize+1)
 	//	recordBytes = append(recordBytes, utils.Bool2Bytes(true)...) // 多1B的标志位
@@ -334,7 +365,7 @@ func (this *Table) ToDiskForNewTable(diskManager *diskMgr.DiskManager, GlobalPag
 		}
 	}
 	//对于每个表中的column，和表头一起处理，可以节省空间
-	_, err = GlobalPageManager.InsertMultipleDataForNewTable(page, bytes, msg.TableHeadSize+this.ColumnSize*(msg.TableNameLength+msg.RecordTypeSize), this.RecordSize, diskManager)
+	_, err = GlobalPageManager.InsertMultipleDataForNewTable(page, bytes, msg.TableNameLength+3*msg.IntSize+2+this.ColumnSize*(msg.TableNameLength+msg.RecordTypeSize), this.RecordSize, diskManager)
 	if err != nil {
 		return err
 	}
@@ -377,6 +408,7 @@ func (this *Table) LoadDataFromPage(page *structType.Page, diskManager *diskMgr.
 	}
 	this.Column = columns
 	var records []structType.Record
+	this.CurPage = page
 	for i := 0; i < this.Length; i++ {
 		var record structType.Record
 		if msg.PageRemainSize-pos < this.RecordSize {

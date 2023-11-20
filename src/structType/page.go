@@ -2,6 +2,7 @@ package structType
 
 import (
 	"GoSQL/src/msg"
+	"GoSQL/src/utils"
 )
 
 type Page struct {
@@ -90,4 +91,23 @@ func (this *Page) GetTailPos() int16 {
 
 func (this *Page) SetTailPos(value int16) {
 	this.pageTailPos = value
+}
+
+// InsertDataToFreeSpace 在这里查找空余位置并判断
+func (this *Page) InsertDataToFreeSpace(bytes []byte) (int, error) {
+	index := this.GetFreeSpace()
+	if int(index)+len(bytes) >= msg.PageRemainSize {
+		return -2, nil
+	}
+	nextFreeSpace := utils.Bytes2Int16(this.data[index : index+2])
+	if nextFreeSpace != 0 {
+		this.SetFreeSpace(msg.FreeSpaceTypeInTable(nextFreeSpace))
+	} else {
+		this.SetFreeSpace(msg.FreeSpaceTypeInTable(int(index) + len(bytes)))
+	}
+	_, err := utils.InsertAndReplaceAtIndex(this.data, int(index), bytes)
+	if err != nil {
+		return -1, err
+	}
+	return msg.Success, nil
 }

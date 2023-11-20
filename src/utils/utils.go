@@ -2,7 +2,6 @@ package utils
 
 import (
 	"GoSQL/src/msg"
-	"GoSQL/src/structType"
 	"crypto/sha256"
 	"errors"
 	"os"
@@ -63,7 +62,7 @@ func FastPow[T int | float64 | int32 | int64](value T, N int) T {
 }
 
 // DeleteElement 删除列表的指定元素
-func DeleteElement[T int | float64 | Pair | structType.Record](slice []T, index int) []T {
+func DeleteElement[T int | float64 | Pair](slice []T, index int) []T {
 	return append(slice[:index], slice[index+1:]...)
 }
 

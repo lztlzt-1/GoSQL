@@ -40,7 +40,7 @@ const FreeSpaceSizeInPageTable = 2
 const PageIDSize = 4
 const PageTableStart = 1
 
-const FreeSpaceSizeInTable = 8
+const FreeSpaceSizeInTable = 2
 
 type FreeSpaceTypeInTable int16
 type FreeSpaceTypeInPageTable int16

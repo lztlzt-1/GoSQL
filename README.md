@@ -45,27 +45,33 @@ func (this *DiskPageTable) LoadFromDisk(pageId msg.PageId) int {
 
 #### 内存中管理
 
-##### page：
+##### page
 
 ​	基本存储单位，存储记录，结构体定义如下
 
 ```go
-type Table struct {
-	PageId     msg.PageId // 这个不用存进disk里，表示这个表的起始页位置
-	Name       string     // 最多TableNameLength长度
-	Length     int        // todo: 可能能利用这个懒读取
-	ColumnSize int
-	RecordSize int
-	Column     []Column
-	Records    []structType.Record
-	NextPageID msg.PageId // 这个不用存进disk里，表示这个表的下一页
-	HeadPageID msg.PageId // 这个不用存进disk里，表示这个表的页所构成的链表的头
+type Page struct {
+	pageId      msg.PageId // 这个也可以用作判断页有效性
+	nextPageID  msg.PageId
+	freeSpace   msg.FreeSpaceTypeInTable
+	pinCount    int
+	pageHeadPos int16 //指向头部已存数据最后一个
+	pageTailPos int16 //指向尾部已存数据最前一个
+	isDirty     bool
+	data        []byte
 }
 ```
 
 ~~使用slotted page作为数据管理方式~~（内存消耗过大，弃用）
 
-NextPageID和HeadPageID是用于读取等操作时不必将所有页读入使用的，每次读取1个页，若没有目标记录再去读取下一个
+~~NextPageID和HeadPageID是用于读取等操作时不必将所有页读入使用的，每次读取1个页，若没有目标记录再去读取下一个~~
+
+freeSpace指向第一个空闲槽位（不一定在页表中是第一个空闲区域）
+
+当执行插入等操作时，由两种情况
+
+* freeSpace有值，那么直接使用这个值，它就是下一个空闲槽位，freeSpace修改成这个地址，并使用这个槽位
+* freeSpace没有值，说明这个槽位本身就没有被使用过，使用这个槽位，并将freeSpace向后移动+recordsize
 
 ##### pageTable
 
