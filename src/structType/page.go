@@ -31,6 +31,7 @@ func (this *Page) GetData() []byte {
 
 func (this *Page) SetData(values []byte) {
 	this.data = values
+	//this.pageHeadPos = int16(len(this.data))
 }
 
 func (this *Page) AddData(values []byte) {

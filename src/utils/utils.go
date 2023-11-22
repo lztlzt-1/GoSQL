@@ -128,3 +128,22 @@ func FileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return !os.IsNotExist(err)
 }
+
+func GetTypeSize(itsType string) int {
+	switch itsType {
+	case "int":
+		return msg.IntSize
+	case "string":
+		return msg.StringSize
+	case "float":
+		return msg.FloatSize
+	case "double":
+		return msg.DoubleSize
+	case "long":
+		return msg.LongSize
+	case "bool":
+		return msg.BoolSize
+	default:
+		return msg.ErrorType
+	}
+}

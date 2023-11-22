@@ -39,67 +39,89 @@ func Init() {
 func Test() {
 	Init()
 	defer func() {
-		//for _, item := range *tableList {
-		//if item.Name == "test222" {
-		//	d := 1
-		//	print(d)
-		//}
-		//_, err := GlobalDiskManager.WritePage(item.CurPage.GetPageId(), item.CurPage)
-		//if err != nil {
-		//	return
-		//}
-		//if err != nil {
-		//	log.Fatal(err)
-		//}
-		//}
+		for _, item := range *tableList {
+			if item.Name == "test222" {
+				d := 1
+				print(d)
+			}
+			_, err := GlobalDiskManager.WritePage(item.CurPage.GetPageId(), item.CurPage)
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = item.SaveTableHead(GlobalDiskManager)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 		err := GlobalDiskManager.DumpPageTable()
 		if err != nil {
 			return
 		}
-		err = GlobalPageManager.GetInitPage().SetInitPageToDisk(GlobalDiskManager)
+		err = GlobalDiskManager.DumpInitPage()
 		if err != nil {
 			log.Fatal(err)
 		}
+		//err = GlobalPageManager.GetInitPage().SetInitPageToDisk(GlobalDiskManager)
+		//if err != nil {
+		//	log.Fatal(err)
+		//}
 	}()
 	// 上面是持久化的固定操作
-	//for i := 0; i < 300; i++ {
-	//	str := fmt.Sprintf("test{%v}", i)
-	//	tanle1, err := Records.NewTable(str, "schoolName string classNum int", tableList, GlobalPageManager, GlobalDiskManager)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//	tanle1.Insert("hdu 7")
-	//}
+	str := ""
 
-	//str := ""
-	//for i := 0; i < 200; i++ {
-	//	str += fmt.Sprint("test", i, " int ")
-	//}
-	//table, err := Records.NewTable("test222", str, tableList, GlobalPageManager, GlobalDiskManager)
+	//新增table
+	for i := 0; i < 30; i++ {
+		str += fmt.Sprint("test", i, " int ")
+	}
+	table, err := Records.NewTable("test222", str, tableList, GlobalPageManager, GlobalDiskManager)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//加载测试
+	//table, err := Records.LoadTableByName("test222", GlobalDiskManager, tableList)
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
 
-	table, err := Records.LoadTableByName("test222", GlobalDiskManager, tableList)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(table)
-	str := ""
-	for i := 0; i < 200; i++ {
+	//插入测试
+	str = ""
+	for i := 0; i < 29; i++ {
 		str += fmt.Sprint(i, " ")
 	}
+	str1 := str
 	for i := 0; i < 60; i++ {
-		if table.RecordSize < msg.PageRemainSize {
-			err = table.Insert(str, GlobalDiskManager)
+		str1 = str + fmt.Sprint(i+1000, " ")
+		if table.RecordSize+1 < msg.PageRemainSize {
+			err = table.Insert(str1, GlobalDiskManager)
+			if err != nil {
+				log.Fatal(err)
+			}
 		} else {
-			// todo: 当一个记录超过1页
+			err := table.InsertBigRecord(str, GlobalDiskManager)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
+	}
+
+	//查询测试
+	str3 := []string{"test2"}
+	str2 := []any{2}
+	_, err = table.Query(str3, str2, GlobalDiskManager)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	//err = table.Insert("hdu 100")
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
+	page1, err := GlobalDiskManager.GetPageById(3)
+	fmt.Println(page1)
+	if err != nil {
+		return
+	}
+	print(str)
 	fmt.Println(table)
 }

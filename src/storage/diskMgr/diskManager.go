@@ -174,7 +174,8 @@ func (this *DiskManager) DumpPageTable() error {
 	if err != nil {
 		return err
 	}
-	bytes = bytes[:0]
+	//bytes = bytes[:0]
+	// 将initPage重新设置
 	return nil
 }
 
@@ -190,6 +191,32 @@ func (this *DiskManager) GetData(offset int64, length int) ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+func (this *DiskManager) DumpInitPage() error {
+	bytes := make([]byte, msg.PageSize)
+	_, err := this.fp.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+	_, err = this.fp.Read(bytes)
+	if err != nil {
+		return err
+	}
+	nextID := this.getNewPageId()
+	bytes, err = utils.InsertAndReplaceAtIndex(bytes, msg.MagicSize, utils.Int2Bytes(int(nextID)-1))
+	if err != nil {
+		return err
+	}
+	_, err = this.fp.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+	_, err = this.fp.Write(bytes)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // LoadBytesByID 获取1页的二进制数据

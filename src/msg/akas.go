@@ -8,6 +8,8 @@ const (
 	BoolSize   = 1
 	FloatSize  = 4
 	StringSize = 255
+	DoubleSize = 8
+	LongSize   = 8
 	pageIdSize = 4
 	ErrorType  = -1
 )

@@ -87,17 +87,17 @@ func (this *PageManager) InsertTuple(page structType.Page, value []byte) error {
 }
 
 // InsertMultipleDataForNewTable 用于将整个表插入内存中，new后或者修改表结构使用
-func (this *PageManager) InsertMultipleDataForNewTable(page *structType.Page, value []byte, headSize int, recordSize int, diskManager *diskMgr.DiskManager) (int16, error) {
+func (this *PageManager) InsertMultipleDataForNewTable(page *structType.Page, value []byte, headSize int, recordSize int, diskManager *diskMgr.DiskManager) (int, int, error) {
 	recordSize++ // 对于插入来说每一个记录多了1B的flag，这个flag不写到record对象里，所以只在这里+1
 	if (len(value)-headSize)%recordSize != 0 {
-		return 0, errors.New("headSize error")
+		return 0, 0, errors.New("headSize error")
 	}
 	if msg.PageRemainSize >= len(value) {
 		err := this.insertDataAndToDisk(page, value, diskManager)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
-		return page.GetHeaderPos(), nil
+		return int(page.GetPageId()), int(page.GetHeaderPos()), nil
 	}
 	//由于创建table时必然没有分配页，这里直接预分配所有页
 	pageSum := headSize/msg.PageRemainSize + 1
@@ -123,23 +123,24 @@ func (this *PageManager) InsertMultipleDataForNewTable(page *structType.Page, va
 
 		err := this.insertDataAndToDisk(page, head[:mallocSize], diskManager)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		head = head[mallocSize:]
 		nextPage, err := this.GetNextPage(page, diskManager)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		page = nextPage
 	}
+
 	// 处理到这table的头已经可以在1页中放下了，需要处理头数据+一些record数据的情况，此时必然可以放下至少一个record
 	// 这里总共需要分配1页
 	page.SetFreeSpace(msg.FreeSpaceTypeInTable(page.GetHeaderPos()))
 	err := this.insertDataAndToDisk(page, head, diskManager)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return page.GetHeaderPos(), nil
+	return int(page.GetPageId()), int(page.GetHeaderPos()), nil
 	//remainSize := msg.PageRemainSize - len(head)
 	//recordNum := remainSize / recordSize
 	//head = append(head, value[:recordNum*recordSize]...)
