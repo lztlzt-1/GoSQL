@@ -14,6 +14,7 @@ type DiskManager struct {
 	diskPageTable DiskPageTable
 	getNewPageId  func() msg.PageId
 	freePageList  []msg.PageId
+	dirtyPageList map[*structType.Page]bool // 用于事务处理时将脏页重新协会磁盘
 }
 
 // NewDiskManager 全局只需要一个diskManager！扫描disk的文件并提取必要信息
@@ -29,6 +30,7 @@ func NewDiskManager(filePath string) (*DiskManager, error) {
 		fp:            file,
 		diskPageTable: NewDiskPageTable(msg.DiskBucketSize),
 		freePageList:  make([]msg.PageId, 0),
+		dirtyPageList: make(map[*structType.Page]bool),
 	}
 	err = GlobalDiskManager.loadPageTable(msg.PageTableStart)
 	if err != nil {
@@ -230,6 +232,30 @@ func (this *DiskManager) LoadBytesByID(pageID msg.PageId) ([]byte, error) {
 
 func Shutdown() {
 
+}
+
+// RefreshPages 将脏页写回内存
+func (this *DiskManager) RefreshPages() {
+	for page, _ := range this.dirtyPageList {
+
+		_, err := this.WritePage(page.GetPageId(), page)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	this.dirtyPageList = make(map[*structType.Page]bool)
+}
+
+func (this *DiskManager) RemoveDirtyPageFromList(page *structType.Page) {
+	if _, ok := this.dirtyPageList[page]; !ok {
+		log.Printf("%d is not in dirtyPageList", page)
+		return
+	}
+	delete(this.dirtyPageList, page)
+}
+
+func (this *DiskManager) InsertDirtyPageToList(page *structType.Page) {
+	this.dirtyPageList[page] = true
 }
 
 func initDBFile(filePath string) {

@@ -220,13 +220,17 @@ func (this *Table) Insert(str string, diskManager *diskMgr.DiskManager) error {
 		return nil
 	}
 	// 如果插入数据后超过1页，则将之前的写入
-	if msg.PageRemainSize-int(this.CurPage.GetFreeSpace()) < this.RecordSize+1 { // 有1B的标志位
+	for msg.PageRemainSize-int(this.CurPage.GetFreeSpace()) < this.RecordSize+1 { // 有1B的标志位
 		// 直接使用页进行写入
 		if this.CurPage.GetNextPageId() == -1 {
 			ID := diskManager.GetNewPageId()
 			this.CurPage.SetNextPageId(ID)
 		}
 		_, err := diskManager.WritePage(this.CurPage.GetPageId(), this.CurPage)
+		if err != nil {
+			return err
+		}
+		diskManager.RemoveDirtyPageFromList(this.CurPage)
 		if err != nil {
 			return err
 		}
@@ -280,6 +284,7 @@ func (this *Table) Insert(str string, diskManager *diskMgr.DiskManager) error {
 	}
 	this.Records = append(this.Records, record)
 	this.Length++
+	diskManager.InsertDirtyPageToList(this.CurPage)
 	return nil
 }
 
