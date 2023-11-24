@@ -28,8 +28,9 @@ const (
 	boolType
 )
 const CapacityLru = 7
-const CapacityLruTime = 3
-const CapacityBucket = 8
+const BufferCapacityLruTime = 3
+const BufferBucketSize = 2
+const PageTableCapacityBucket = 8
 const TableNameLength = 20
 const RecordNameLength = 20
 const RecordTypeSize = 10

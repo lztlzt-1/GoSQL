@@ -4,6 +4,7 @@ import (
 	"GoSQL/src/TimeManager"
 	"GoSQL/src/algorithm/Queue"
 	"GoSQL/src/msg"
+	"log"
 )
 
 type frameInfo struct {
@@ -34,6 +35,14 @@ func NewLruKReplacer(capacity msg.ReplacerSize, k uint8) LruKReplacer {
 	}
 }
 
+func (this *LruKReplacer) GetEvictFlag(pageID msg.PageId) bool {
+	return *this.hash_[pageID].evictable
+}
+
+func (this *LruKReplacer) SetEvictFlag(pageID msg.PageId, flag bool) {
+	*this.hash_[pageID].evictable = flag
+}
+
 func (this *LruKReplacer) getSize() msg.ReplacerSize {
 	return msg.ReplacerSize(len(this.hash_))
 }
@@ -58,9 +67,9 @@ func (this *LruKReplacer) Insert(id msg.PageId) int {
 		queue := Queue.NewQueue[int]()
 		nowTime := this.timeGenerator.GetNewTime()
 		queue.Push(nowTime)
-		bo := true
+		evict := false
 		this.evictableSize++
-		f := frameInfo{evictable: &bo, insertTime: &queue}
+		f := frameInfo{evictable: &evict, insertTime: &queue}
 		this.hash_[id] = f
 		return msg.Success
 	}
@@ -116,7 +125,7 @@ func (this *LruKReplacer) Remove(id msg.PageId) int {
 		return msg.NotFound
 	}
 	if *this.hash_[id].evictable == true {
-		return msg.CannotBeEvict
+		log.Printf("warning: evict a page that not excepted to be evicted")
 	}
 	delete(this.hash_, id)
 	return msg.Success

@@ -38,13 +38,13 @@ func (this *PageManager) NewPage(diskManager *diskMgr.DiskManager) *structType.P
 	page := new(structType.Page)
 	page.SetPageId(pageId)
 	page.SetPinCount(0)
-	page.SetDirty(false)
 	page.SetTailPos(msg.PageRemainSize - 1)
 	page.SetHeaderPos(0)
 	page.SetNextPageId(-1)
 	this.initPage.SetInitPageID(pageId)
 	//page.pageSize = 0
 	page.SetData(make([]byte, msg.PageRemainSize))
+	page.SetDirty(false)
 	return page
 }
 
@@ -54,12 +54,12 @@ func (this *PageManager) NewPageWithID(id msg.PageId) *structType.Page {
 	page.SetPageId(pageId)
 	page.SetNextPageId(-1)
 	page.SetPinCount(0)
-	page.SetDirty(false)
 	page.SetTailPos(msg.PageRemainSize - 1)
 	page.SetHeaderPos(0)
 	this.initPage.SetInitPageID(pageId)
 	//page.pageSize = 0
 	page.SetData(make([]byte, msg.PageRemainSize))
+	page.SetDirty(false)
 	return page
 }
 
@@ -233,8 +233,8 @@ func (this *PageManager) insertDataAndToDisk(page *structType.Page, value []byte
 func (this *PageManager) CreateNextPage(page *structType.Page, diskManager *diskMgr.DiskManager) *structType.Page {
 	newPage := this.NewPage(diskManager)
 	page.SetNextPageId(newPage.GetPageId())
-	newPage.SetDirty(false)
 	newPage.SetPinCount(page.GetPinCount())
+	newPage.SetDirty(false)
 	return newPage
 }
 

@@ -424,8 +424,8 @@ func (this *DiskManager) GetPageById(pageid msg.PageId) (*structType.Page, error
 	page.SetPinCount(count)
 	page.SetHeaderPos(headPos)
 	page.SetTailPos(tailPos)
-	page.SetDirty(isDirty)
 	page.SetData(bytes)
+	page.SetDirty(isDirty)
 	return &page, nil
 }
 

@@ -15,6 +15,7 @@ var openTableList *[]*Records.Table
 // var initPage *pageMgr.InitPage
 var GlobalDiskManager *diskMgr.DiskManager
 var GlobalPageManager *pageMgr.PageManager
+var GlobalBufferManager *buffer.BufferPoolManager
 
 func Init() {
 	var err error
@@ -23,7 +24,7 @@ func Init() {
 		log.Fatal(err)
 	}
 	initPage := diskMgr.GetInitPage(GlobalDiskManager)
-	err = buffer.NewBufferPoolManager(8)
+	GlobalBufferManager = buffer.NewBufferPoolManager(msg.BufferBucketSize)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -39,18 +40,22 @@ func Init() {
 func Test() {
 	Init()
 	defer func() {
-		for _, item := range *openTableList {
-			if item.Name == "test222" {
-				d := 1
-				print(d)
-			}
-			GlobalDiskManager.RefreshPages()
-			err := item.SaveTableHead(GlobalDiskManager)
-			if err != nil {
-				log.Fatal(err)
-			}
+		//for _, item := range *openTableList {
+		//	if item.Name == "test222" {
+		//		d := 1
+		//		print(d)
+		//	}
+		//	GlobalDiskManager.RefreshPages()
+		//	err := item.SaveTableHead(GlobalDiskManager)
+		//	if err != nil {
+		//		log.Fatal(err)
+		//	}
+		//}
+		err := GlobalBufferManager.RefreshAll(GlobalDiskManager)
+		if err != nil {
+			return
 		}
-		err := GlobalDiskManager.DumpPageTable()
+		err = GlobalDiskManager.DumpPageTable()
 		if err != nil {
 			return
 		}
@@ -67,22 +72,22 @@ func Test() {
 	str := ""
 
 	//新增table
-	//for i := 0; i < 30; i++ {
-	//	str += fmt.Sprint("test", i, " int ")
-	//}
-	//table, err := Records.NewTable("test222", str, openTableList, GlobalPageManager, GlobalDiskManager)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-
-	//加载测试
-	table, err := Records.LoadTableByName("test222", GlobalDiskManager, openTableList)
+	for i := 0; i < 30; i++ {
+		str += fmt.Sprint("test", i, " int ")
+	}
+	table, err := Records.NewTable("test222", str, openTableList, GlobalPageManager, GlobalDiskManager, GlobalBufferManager)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	//加载测试
+	//table, err := Records.LoadTableByName("test222", GlobalDiskManager, openTableList)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+
 	//插入测试
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 600; i++ {
 		str = ""
 		for j := 0; j < 30; j++ {
 			if j != 2 {
@@ -93,12 +98,12 @@ func Test() {
 
 		}
 		if table.RecordSize+1 < msg.PageRemainSize {
-			err = table.Insert(str, GlobalDiskManager)
+			err = table.Insert(str, GlobalDiskManager, GlobalBufferManager)
 			if err != nil {
 				log.Fatal(err)
 			}
 		} else {
-			err := table.InsertBigRecord(str, GlobalDiskManager)
+			err := table.InsertBigRecord(str, GlobalDiskManager, GlobalBufferManager)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -106,13 +111,24 @@ func Test() {
 	}
 
 	//查询测试
-	GlobalDiskManager.RefreshPages()
-	str3 := []string{"test2"}
-	str2 := []any{2}
-	_, err = table.Query(str3, str2, GlobalDiskManager)
-	if err != nil {
-		log.Fatal(err)
-	}
+	//GlobalDiskManager.RefreshPages()
+	//str3 := []string{"test2", "test3"}
+	//str2 := []any{2, 3}
+	//_, err = table.Query(str3, str2, GlobalDiskManager)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+
+	//更新测试
+	//GlobalDiskManager.RefreshPages()
+	//str3 := []string{"test2"}
+	//str2 := []any{2}
+	//str6 := []any{3, 100}
+	//str5 := []string{"test2", "test3"}
+	//err = table.Update(str3, str2, str5, str6, GlobalDiskManager)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
 
 	//err = table.Insert("hdu 100")
 	//if err != nil {

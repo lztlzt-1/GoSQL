@@ -15,7 +15,7 @@ func (this *BufferPageTable) Query(id msg.PageId) *utils.Pair {
 }
 
 func NewPageTable() BufferPageTable {
-	return BufferPageTable{hash: ExtendibleHash.NewExtendibleHash(msg.CapacityBucket)}
+	return BufferPageTable{hash: ExtendibleHash.NewExtendibleHash(msg.BufferBucketSize)}
 }
 
 // InsertRecord 向页表中插入一个记录（frameId,pageId),用在buffer里面的

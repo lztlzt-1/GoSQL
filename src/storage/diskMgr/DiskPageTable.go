@@ -25,7 +25,7 @@ func (this *DiskPageTable) Query(name string) msg.PageId {
 }
 
 func NewPageTable() DiskPageTable {
-	return DiskPageTable{hash: ExtendibleHash.NewExtendibleHash(msg.CapacityBucket)}
+	return DiskPageTable{hash: ExtendibleHash.NewExtendibleHash(msg.PageTableCapacityBucket)}
 }
 
 // InsertTable 向页表中插入一个表格

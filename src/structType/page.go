@@ -22,6 +22,7 @@ func (this *Page) GetFreeSpace() msg.FreeSpaceTypeInTable {
 
 func (this *Page) SetFreeSpace(values msg.FreeSpaceTypeInTable) {
 	this.freeSpace = values
+	this.isDirty = true
 }
 
 func (this *Page) GetData() []byte {
@@ -31,11 +32,13 @@ func (this *Page) GetData() []byte {
 
 func (this *Page) SetData(values []byte) {
 	this.data = values
+	this.isDirty = true
 	//this.pageHeadPos = int16(len(this.data))
 }
 
 func (this *Page) AddData(values []byte) {
 	this.data = values
+	this.isDirty = true
 }
 
 func (this *Page) GetPageId() msg.PageId {
@@ -44,6 +47,7 @@ func (this *Page) GetPageId() msg.PageId {
 
 func (this *Page) SetPageId(id msg.PageId) {
 	this.pageId = id
+	this.isDirty = true
 }
 
 func (this *Page) GetNextPageId() msg.PageId {
@@ -52,9 +56,20 @@ func (this *Page) GetNextPageId() msg.PageId {
 
 func (this *Page) SetNextPageId(id msg.PageId) {
 	this.nextPageID = id
+	this.isDirty = true
 }
 
 func (this *Page) GetPinCount() int {
+	return this.pinCount
+}
+
+func (this *Page) Pin() int {
+	this.pinCount++
+	return this.pinCount
+}
+
+func (this *Page) UnPin() int {
+	this.pinCount--
 	return this.pinCount
 }
 
@@ -80,10 +95,12 @@ func (this *Page) GetHeaderPos() int16 {
 
 func (this *Page) SetHeaderPosByOffset(value int16) {
 	this.pageHeadPos += value
+	this.isDirty = true
 }
 
 func (this *Page) SetHeaderPos(value int16) {
 	this.pageHeadPos = value
+	this.isDirty = true
 }
 
 func (this *Page) GetTailPos() int16 {
@@ -92,6 +109,7 @@ func (this *Page) GetTailPos() int16 {
 
 func (this *Page) SetTailPos(value int16) {
 	this.pageTailPos = value
+	this.isDirty = true
 }
 
 // InsertDataToFreeSpace 在这里查找空余位置并判断
@@ -106,9 +124,11 @@ func (this *Page) InsertDataToFreeSpace(bytes []byte) (int, error) {
 	} else {
 		this.SetFreeSpace(msg.FreeSpaceTypeInTable(int(index) + len(bytes)))
 	}
-	_, err := utils.InsertAndReplaceAtIndex(this.data, int(index), bytes)
+	var err error
+	this.data, err = utils.InsertAndReplaceAtIndex(this.data, int(index), bytes)
 	if err != nil {
 		return -1, err
 	}
+	this.isDirty = true
 	return msg.Success, nil
 }
