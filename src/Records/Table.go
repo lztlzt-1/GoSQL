@@ -83,18 +83,18 @@ func NewTable(name string, str string, tableList *[]*Table, pageManager *pageMgr
 	return &table, nil
 }
 
-func LoadTableByName(name string, diskManager *diskMgr.DiskManager, tableList *[]*Table) (*Table, error) {
+func LoadTableByName(name string, diskManager *diskMgr.DiskManager, bufferManager *buffer.BufferPoolManager, tableList *[]*Table) (*Table, error) {
 	table := Table{}
 	pageId, err := diskManager.FindPageIdByName(name)
 	table.PageId = pageId
 	if err != nil {
 		return nil, err
 	}
-	page, err := diskManager.GetPageById(pageId)
+	page, err := bufferManager.GetPageById(pageId, diskManager)
 	if err != nil {
 		return nil, err
 	}
-	err = table.LoadDataFromPage(page, diskManager)
+	err = table.LoadDataFromPage(page, diskManager, bufferManager)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +276,7 @@ func (this *Table) Insert(str string, diskManager *diskMgr.DiskManager, bufferMa
 			bytes = append(bytes, strBytes...)
 		}
 	}
+	this.Length++
 	bytes = append(bytes, utils.Bool2Bytes(true)...) // 1B标志位
 	_, err := this.CurPage.InsertDataToFreeSpace(bytes)
 	if err != nil {
@@ -283,7 +284,6 @@ func (this *Table) Insert(str string, diskManager *diskMgr.DiskManager, bufferMa
 	}
 	//bufferManager.InsertPage(this.CurPage, true, diskManager)
 	this.Records = append(this.Records, record)
-	this.Length++
 	//diskManager.InsertDirtyPageToList(this.CurPage)
 	bufferManager.UnPin(this.CurPage)
 	return nil
@@ -300,8 +300,9 @@ func (this *Table) queryidx(key string) (int, error) {
 }
 
 // Query 这个查询属于比较底层的，所以可以通过前面的步骤过滤到提供两个list,表示每一个key对应的value是数组里的值则拿出
-func (this *Table) Query(key []string, value []any, diskManager *diskMgr.DiskManager) ([]structType.Record, error) {
+func (this *Table) Query(key []string, value []any, diskManager *diskMgr.DiskManager, bufferManager *buffer.BufferPoolManager) ([]structType.Record, error) {
 	var queryRecords []structType.Record
+	bufferManager.InsertPage(this.CurPage, diskManager)
 	idx, err := this.queryidx(key[0]) // column[idx]表示要查询的记录值
 	if err != nil {
 		return nil, err
@@ -337,13 +338,17 @@ func (this *Table) Query(key []string, value []any, diskManager *diskMgr.DiskMan
 			bytes = bytes[pos:]
 		}
 		if this.CurPage.GetNextPageId() == -1 {
-			this.CurPage, err = diskManager.GetPageById(this.PageId)
+			bufferManager.UnPin(this.CurPage)
+			this.CurPage, err = bufferManager.GetPageById(this.PageId, diskManager)
+			bufferManager.Pin(this.CurPage)
 			if err != nil {
 				return nil, err
 			}
 			break
 		} else {
-			this.CurPage, err = diskManager.GetPageById(this.CurPage.GetNextPageId())
+			bufferManager.UnPin(this.CurPage)
+			this.CurPage, err = bufferManager.GetPageById(this.CurPage.GetNextPageId(), diskManager)
+			bufferManager.Pin(this.CurPage)
 			if err != nil {
 				return nil, err
 			}
@@ -351,7 +356,9 @@ func (this *Table) Query(key []string, value []any, diskManager *diskMgr.DiskMan
 	}
 	// 从头找到第一个记录record的页
 	for this.CurPage.GetPageId() != this.RecordStartID {
-		this.CurPage, err = diskManager.GetPageById(this.CurPage.GetNextPageId())
+		bufferManager.UnPin(this.CurPage)
+		this.CurPage, err = bufferManager.GetPageById(this.CurPage.GetNextPageId(), diskManager)
+		bufferManager.Pin(this.CurPage)
 		if err != nil {
 			return nil, err
 		}
@@ -387,7 +394,9 @@ func (this *Table) Query(key []string, value []any, diskManager *diskMgr.DiskMan
 			}
 			bytes = bytes[pos:]
 		}
-		this.CurPage, err = diskManager.GetPageById(this.CurPage.GetNextPageId())
+		bufferManager.UnPin(this.CurPage)
+		this.CurPage, err = bufferManager.GetPageById(this.CurPage.GetNextPageId(), diskManager)
+		bufferManager.Pin(this.CurPage)
 
 	}
 	// 找完了第一个关键词的所有信息，之后只需要对找到了这些记录进行筛选
@@ -405,6 +414,7 @@ func (this *Table) Query(key []string, value []any, diskManager *diskMgr.DiskMan
 		}
 		queryRecords = localRecords
 	}
+	bufferManager.UnPin(this.CurPage)
 	return queryRecords, nil
 }
 
@@ -645,7 +655,8 @@ func (this *Table) ToDiskForNewTable(diskManager *diskMgr.DiskManager, GlobalPag
 }
 
 // LoadDataFromPage 将数据从page解析到表里
-func (this *Table) LoadDataFromPage(page *structType.Page, diskManager *diskMgr.DiskManager) error {
+func (this *Table) LoadDataFromPage(page *structType.Page, diskManager *diskMgr.DiskManager, bufferManager *buffer.BufferPoolManager) error {
+	bufferManager.InsertPage(page, diskManager)
 	bytes := page.GetData()
 	name := bytes[:msg.TableNameLength]
 	name = utils.RemoveTrailingNullBytes(name)
@@ -659,7 +670,7 @@ func (this *Table) LoadDataFromPage(page *structType.Page, diskManager *diskMgr.
 	// 加载进包括column在内的所有table头信息
 	for i := 0; i < (msg.TableNameLength+3*msg.IntSize+msg.FreeSpaceSizeInTable+this.ColumnSize*(msg.RecordNameLength+msg.RecordTypeSize))/msg.PageRemainSize; i++ {
 		var err error
-		page, err = diskManager.GetPageById(page.GetNextPageId())
+		page, err = bufferManager.GetPageById(page.GetNextPageId(), diskManager)
 		if err != nil {
 			return err
 		}

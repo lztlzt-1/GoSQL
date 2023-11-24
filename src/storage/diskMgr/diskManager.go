@@ -234,7 +234,7 @@ func Shutdown() {
 
 }
 
-// RefreshPages 将脏页写回内存
+// Deprecated: RefreshPages 将脏页写回内存,更新成bufferManager.Refresh()
 func (this *DiskManager) RefreshPages() {
 	for page, _ := range this.dirtyPageList {
 

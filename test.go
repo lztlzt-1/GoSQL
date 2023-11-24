@@ -40,17 +40,17 @@ func Init() {
 func Test() {
 	Init()
 	defer func() {
-		//for _, item := range *openTableList {
-		//	if item.Name == "test222" {
-		//		d := 1
-		//		print(d)
-		//	}
-		//	GlobalDiskManager.RefreshPages()
-		//	err := item.SaveTableHead(GlobalDiskManager)
-		//	if err != nil {
-		//		log.Fatal(err)
-		//	}
-		//}
+		for _, item := range *openTableList {
+			if item.Name == "test222" {
+				d := 1
+				print(d)
+			}
+			//GlobalDiskManager.RefreshPages()
+			err := item.SaveTableHead(GlobalDiskManager)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 		err := GlobalBufferManager.RefreshAll(GlobalDiskManager)
 		if err != nil {
 			return
@@ -72,52 +72,56 @@ func Test() {
 	str := ""
 
 	//新增table
-	for i := 0; i < 30; i++ {
-		str += fmt.Sprint("test", i, " int ")
-	}
-	table, err := Records.NewTable("test222", str, openTableList, GlobalPageManager, GlobalDiskManager, GlobalBufferManager)
+	//for i := 0; i < 30; i++ {
+	//	str += fmt.Sprint("test", i, " int ")
+	//}
+	//table, err := Records.NewTable("test222", str, openTableList, GlobalPageManager, GlobalDiskManager, GlobalBufferManager)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+
+	//加载测试
+	table, err := Records.LoadTableByName("test222", GlobalDiskManager, GlobalBufferManager, openTableList)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	//加载测试
-	//table, err := Records.LoadTableByName("test222", GlobalDiskManager, openTableList)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-
 	//插入测试
-	for i := 0; i < 600; i++ {
-		str = ""
-		for j := 0; j < 30; j++ {
-			if j != 2 {
-				str += fmt.Sprint(i, " ")
-			} else {
-				str += fmt.Sprint(2, " ")
-			}
-
-		}
-		if table.RecordSize+1 < msg.PageRemainSize {
-			err = table.Insert(str, GlobalDiskManager, GlobalBufferManager)
-			if err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			err := table.InsertBigRecord(str, GlobalDiskManager, GlobalBufferManager)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
+	//for i := 0; i < 600; i++ {
+	//	str = ""
+	//	for j := 0; j < 30; j++ {
+	//		if j != 2 {
+	//			str += fmt.Sprint(i, " ")
+	//		} else {
+	//			str += fmt.Sprint(2, " ")
+	//		}
+	//
+	//	}
+	//	if table.RecordSize+1 < msg.PageRemainSize {
+	//		err = table.Insert(str, GlobalDiskManager, GlobalBufferManager)
+	//		if err != nil {
+	//			log.Fatal(err)
+	//		}
+	//	} else {
+	//		err := table.InsertBigRecord(str, GlobalDiskManager, GlobalBufferManager)
+	//		if err != nil {
+	//			log.Fatal(err)
+	//		}
+	//	}
+	//}
 
 	//查询测试
 	//GlobalDiskManager.RefreshPages()
-	//str3 := []string{"test2", "test3"}
-	//str2 := []any{2, 3}
-	//_, err = table.Query(str3, str2, GlobalDiskManager)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+	err = GlobalBufferManager.RefreshAll(GlobalDiskManager)
+	if err != nil {
+		return
+	}
+	str3 := []string{"test2", "test3"}
+	str2 := []any{2, 3}
+	_, err = table.Query(str3, str2, GlobalDiskManager, GlobalBufferManager)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	//更新测试
 	//GlobalDiskManager.RefreshPages()
