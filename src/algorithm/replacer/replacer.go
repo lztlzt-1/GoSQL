@@ -67,7 +67,7 @@ func (this *LruKReplacer) Insert(id msg.PageId) int {
 		queue := Queue.NewQueue[int]()
 		nowTime := this.timeGenerator.GetNewTime()
 		queue.Push(nowTime)
-		evict := false
+		evict := true
 		this.evictableSize++
 		f := frameInfo{evictable: &evict, insertTime: &queue}
 		this.hash_[id] = f

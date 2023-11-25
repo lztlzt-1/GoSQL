@@ -9,10 +9,10 @@ type Page struct {
 	pageId      msg.PageId // 这个也可以用作判断页有效性
 	nextPageID  msg.PageId
 	freeSpace   msg.FreeSpaceTypeInTable
-	pinCount    int
+	pinCount    int   // 不用写进内存
 	pageHeadPos int16 //指向头部已存数据最后一个
 	pageTailPos int16 //指向尾部已存数据最前一个
-	isDirty     bool
+	isDirty     bool  // 不用写进内存
 	data        []byte
 }
 
@@ -36,10 +36,10 @@ func (this *Page) SetData(values []byte) {
 	//this.pageHeadPos = int16(len(this.data))
 }
 
-func (this *Page) AddData(values []byte) {
-	this.data = values
-	this.isDirty = true
-}
+//func (this *Page) AddData(values []byte) {
+//	this.data = values
+//	this.isDirty = true
+//}
 
 func (this *Page) GetPageId() msg.PageId {
 	return this.pageId

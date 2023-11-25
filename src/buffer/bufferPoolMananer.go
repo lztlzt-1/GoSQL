@@ -30,7 +30,7 @@ func NewBufferPoolManager(bufferSize int, diskManager *diskMgr.DiskManager) *Buf
 }
 
 // InsertPage 在缓冲中插入页，如果缓冲满了则会和磁盘交换
-func (this *BufferPoolManager) InsertPage(page *structType.Page) int {
+func (this *BufferPoolManager) insertPage(page *structType.Page) int {
 	if this.pageTable.Query(page.GetPageId()) != nil {
 		//如果已经在缓冲区存在就加一次计数
 		this.replacer_.Insert(page.GetPageId())
@@ -55,13 +55,13 @@ func (this *BufferPoolManager) InsertPage(page *structType.Page) int {
 }
 
 // Pin 这里需要原子操作
-func (this *BufferPoolManager) Pin(page *structType.Page) {
-	this.InsertPage(page)
+func (this *BufferPoolManager) pin(page *structType.Page) {
+	this.insertPage(page)
 	page.Pin()
 	this.replacer_.SetEvictFlag(page.GetPageId(), false)
 }
 
-func (this *BufferPoolManager) UnPin(page *structType.Page) {
+func (this *BufferPoolManager) unPin(page *structType.Page) {
 	pinNum := page.UnPin()
 	if pinNum < 0 {
 		pinNum = 0
@@ -87,7 +87,7 @@ func (this *BufferPoolManager) QueryPage(pageID msg.PageId) *structType.Page {
 	if page == nil {
 		var err error
 		page, err = this.diskManager.GetPageById(pageID)
-		this.InsertPage(page)
+		this.insertPage(page)
 		if err != nil {
 			return nil
 		}
@@ -110,7 +110,7 @@ func (this *BufferPoolManager) GetPageById(pageID msg.PageId) (*structType.Page,
 		return nil, err
 	}
 	//替换,查找时不会修改数据，所以dirty是false
-	this.InsertPage(page)
+	this.insertPage(page)
 	return page, nil
 }
 
@@ -158,8 +158,115 @@ func (this *BufferPoolManager) dumpPage(frameId msg.FrameId) error {
 	return nil
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////       对页的操作都有缓存实现接口      ////////////////////////
+
 func (this *BufferPoolManager) SetPageData(page *structType.Page, data []byte) {
-	this.Pin(page)
+	this.pin(page)
 	page.SetData(data)
-	this.UnPin(page)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) GetPageData(page *structType.Page) []byte {
+	this.insertPage(page)
+	data := page.GetData()
+	return data
+}
+
+func (this *BufferPoolManager) SetNextPageID(page *structType.Page, pageID msg.PageId) {
+	this.pin(page)
+	page.SetNextPageId(pageID)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) GetNextPageID(page *structType.Page) msg.PageId {
+	this.insertPage(page)
+	pageID := page.GetNextPageId()
+	return pageID
+}
+
+func (this *BufferPoolManager) GetFreeSpace(page *structType.Page) msg.FreeSpaceTypeInTable {
+	this.insertPage(page)
+	return page.GetFreeSpace()
+}
+
+func (this *BufferPoolManager) SetFreeSpace(page *structType.Page, values msg.FreeSpaceTypeInTable) {
+	this.pin(page)
+	page.SetFreeSpace(values)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) GetData(page *structType.Page) []byte {
+	this.insertPage(page)
+	return page.GetData()
+}
+
+func (this *BufferPoolManager) SetData(page *structType.Page, values []byte) {
+	this.pin(page)
+	page.SetData(values)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) GetPageId(page *structType.Page) msg.PageId {
+	this.insertPage(page)
+	return page.GetPageId()
+}
+
+func (this *BufferPoolManager) SetPageId(page *structType.Page, id msg.PageId) {
+	this.pin(page)
+	page.SetPageId(id)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) GetPinCount(page *structType.Page) int {
+	this.insertPage(page)
+	return page.GetPinCount()
+}
+
+func (this *BufferPoolManager) SetPinCount(page *structType.Page, pinCount int) {
+	this.pin(page)
+	page.SetPinCount(pinCount)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) IsDirty(page *structType.Page) bool {
+	//this.InsertPage(page)
+	return page.IsDirty()
+}
+
+func (this *BufferPoolManager) SetDirty(page *structType.Page, isDirty bool) {
+	page.SetDirty(isDirty)
+}
+
+func (this *BufferPoolManager) GetRemainSize(page *structType.Page) int16 {
+	this.insertPage(page)
+	return page.GetRemainSize()
+}
+
+func (this *BufferPoolManager) GetHeaderPos(page *structType.Page) int16 {
+	this.insertPage(page)
+	return page.GetHeaderPos()
+}
+
+func (this *BufferPoolManager) SetHeaderPosByOffset(page *structType.Page, value int16) {
+	this.pin(page)
+	page.SetHeaderPosByOffset(value)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) SetHeaderPos(page *structType.Page, value int16) {
+	this.pin(page)
+	page.SetHeaderPos(value)
+	this.unPin(page)
+}
+
+func (this *BufferPoolManager) GetTailPos(page *structType.Page) int16 {
+	this.insertPage(page)
+	return page.GetTailPos()
+}
+
+func (this *BufferPoolManager) SetTailPos(page *structType.Page, value int16) {
+	this.pin(page)
+	page.SetTailPos(value)
+	this.unPin(page)
 }
