@@ -72,66 +72,75 @@ func Test() {
 	str := ""
 
 	//新增table
-	for i := 0; i < 30; i++ {
-		str += fmt.Sprint("test", i, " int ")
-	}
-	table, err := Records.NewTable("test222", str, openTableList, GlobalPageManager, GlobalBufferManager, GlobalDiskManager)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	//加载测试
-	//table, err := Records.LoadTableByName("test222", GlobalBufferManager, GlobalDiskManager, openTableList)
+	//for i := 0; i < 300; i++ {
+	//	str += fmt.Sprint("test", i, " int ")
+	//}
+	//table, err := Records.NewTable("test222", str, openTableList, GlobalPageManager, GlobalBufferManager, GlobalDiskManager)
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
 
-	//插入测试
-	for i := 0; i < 100; i++ {
-		str = ""
-		for j := 0; j < 30; j++ {
-			if j != 2 {
-				str += fmt.Sprint(i, " ")
-			} else {
-				str += fmt.Sprint(2, " ")
-			}
-
-		}
-		if table.RecordSize+1 < msg.PageRemainSize {
-			err = table.Insert(str, GlobalDiskManager, GlobalBufferManager)
-			if err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			err := table.InsertBigRecord(str, GlobalBufferManager, GlobalDiskManager)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
+	//加载测试
+	table, err := Records.LoadTableByName("test222", GlobalBufferManager, GlobalDiskManager, openTableList)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	//查询测试
+	//插入测试
+	//for i := 0; i < 10; i++ {
+	//	str = ""
+	//	for j := 0; j < 300; j++ {
+	//		if j != 2 {
+	//			str += fmt.Sprint(i+100, " ")
+	//		} else {
+	//			str += fmt.Sprint(2, " ")
+	//		}
+	//
+	//	}
+	//	if table.RecordSize+1 < msg.PageRemainSize {
+	//		err = table.Insert(str, GlobalDiskManager, GlobalBufferManager)
+	//		if err != nil {
+	//			log.Fatal(err)
+	//		}
+	//	} else {
+	//		err := table.InsertBigRecord(str, GlobalBufferManager, GlobalDiskManager)
+	//		if err != nil {
+	//			log.Fatal(err)
+	//		}
+	//	}
+	//}
+	//
+	////查询测试
+	err = GlobalBufferManager.RefreshAll()
+	if err != nil {
+		return
+	}
+	str3 := []string{"test2"}
+	str2 := []any{2}
+	_, err = table.Query(str3, str2, GlobalBufferManager)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//更新测试
 	//err = GlobalBufferManager.RefreshAll()
+	//str3 := []string{"test2"}
+	//str2 := []any{2}
+	//str6 := []any{3, 100}
+	//str5 := []string{"test2", "test3"}
+	//err = table.Update(str3, str2, str5, str6, GlobalBufferManager)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+
+	//删除测试////////////////////////////////////////删完后插入好像有点问题
+	//err = GlobalBufferManager.RefreshAll()
+	//str7 := []string{"test1"}
+	//str8 := []any{100}
+	//err = table.Delete(str7, str8, GlobalBufferManager)
 	//if err != nil {
 	//	return
 	//}
-	//str3 := []string{"test2", "test3"}
-	//str2 := []any{3, 100}
-	//_, err = table.Query(str3, str2, GlobalBufferManager)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-
-	//更新测试
-	err = GlobalBufferManager.RefreshAll()
-	str3 := []string{"test2"}
-	str2 := []any{2}
-	str6 := []any{3, 100}
-	str5 := []string{"test2", "test3"}
-	err = table.Update(str3, str2, str5, str6, GlobalBufferManager, GlobalDiskManager)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	//err = table.Insert("hdu 100")
 	//if err != nil {

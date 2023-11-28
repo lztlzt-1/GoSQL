@@ -1,7 +1,7 @@
 package msg
 
 const PageSize = 4096
-const PageRemainSize = 4082
+const PageRemainSize = 4086
 const TupleSlotSize = 2
 const (
 	IntSize    = 4
@@ -36,7 +36,7 @@ const RecordNameLength = 20
 const RecordTypeSize = 10
 const MaxStringLength = 255
 const DiskBucketSize = 2
-const PageHeadSize = 14
+const PageHeadSize = 10
 const MagicSize = 10
 const TableHeadSize = 32
 const FreeSpaceSizeInPageTable = 2

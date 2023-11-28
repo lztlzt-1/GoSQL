@@ -47,6 +47,16 @@ func ReadBytesFromPosition(data []byte, pos int, length int) ([]byte, error) {
 	return result, nil
 }
 
+// CheckAllZero 检查一个数组是否全0
+func CheckAllZero[T byte](data []T) bool {
+	for i := 0; i < len(data); i++ {
+		if data[i] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // FastPow 快速幂，求value^N
 func FastPow[T int | float64 | int32 | int64](value T, N int) T {
 	base := value

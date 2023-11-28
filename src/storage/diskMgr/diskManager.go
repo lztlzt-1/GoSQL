@@ -310,19 +310,19 @@ func (this *DiskManager) WritePage(pageId msg.PageId, page *structType.Page) (in
 	//if err != nil {
 	//	return -1, err
 	//}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 10, utils.Int162Bytes(page.GetHeaderPos()))
-	if err != nil {
-		return -1, err
-	}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 12, utils.Int162Bytes(page.GetTailPos()))
-	if err != nil {
-		return -1, err
-	}
+	//data, err = utils.InsertAndReplaceAtIndex[byte](data, 10, utils.Int162Bytes(page.GetHeaderPos()))
+	//if err != nil {
+	//	return -1, err
+	//}
+	//data, err = utils.InsertAndReplaceAtIndex[byte](data, 12, utils.Int162Bytes(page.GetTailPos()))
+	//if err != nil {
+	//	return -1, err
+	//}
 	//data, err = utils.InsertAndReplaceAtIndex[byte](data, 18, utils.Bool2Bytes(page.IsDirty()))
 	//if err != nil {
 	//	return -1, err
 	//}
-	data, err = utils.InsertAndReplaceAtIndex[byte](data, 14, page.GetData())
+	data, err = utils.InsertAndReplaceAtIndex[byte](data, 10, page.GetData())
 	if err != nil {
 		return -1, err
 	}
@@ -373,13 +373,13 @@ func (this *DiskManager) ReadPage(pageId msg.PageId) (structType.Page, error) {
 	page.SetNextPageId(msg.PageId(utils.Bytes2Int(readData)))
 	readData, err = utils.ReadBytesFromPosition(data, 8, 2)
 	page.SetFreeSpace(msg.FreeSpaceTypeInTable(utils.Bytes2Int16(readData)))
-	readData, err = utils.ReadBytesFromPosition(data, 10, 2)
-	page.SetHeaderPos(utils.Bytes2Int16(readData))
-	readData, err = utils.ReadBytesFromPosition(data, 12, 2)
-	page.SetTailPos(utils.Bytes2Int16(readData))
+	//readData, err = utils.ReadBytesFromPosition(data, 10, 2)
+	//page.SetHeaderPos(utils.Bytes2Int16(readData))
+	//readData, err = utils.ReadBytesFromPosition(data, 12, 2)
+	//page.SetTailPos(utils.Bytes2Int16(readData))
 	//readData, err = utils.ReadBytesFromPosition(data, 12, 1)
 	//page.SetDirty(utils.Bytes2Bool(readData))
-	values, err := utils.ReadBytesFromPosition(data, 14, msg.PageRemainSize)
+	values, err := utils.ReadBytesFromPosition(data, 10, msg.PageRemainSize)
 	page.SetData(values)
 	log.Println(msg.SuccessWritePage(int(pageId)))
 	return page, nil
@@ -410,22 +410,22 @@ func (this *DiskManager) GetPageById(pageid msg.PageId) (*structType.Page, error
 	}
 	freeSpace := utils.Bytes2Int16(pageBytes[8:10])
 	//count := utils.Bytes2Int(pageBytes[10:14])
-	headPos := utils.Bytes2Int16(pageBytes[10:12])
-	tailPos := utils.Bytes2Int16(pageBytes[12:14])
+	//headPos := utils.Bytes2Int16(pageBytes[10:12])
+	//tailPos := utils.Bytes2Int16(pageBytes[12:14])
 	//isDirty := utils.Bytes2Bool(pageBytes[14:19])
-	bytes := pageBytes[14:]
+	bytes := pageBytes[10:]
 	if id == 0 {
 		id = pageid
 		nextID = -1
-		tailPos = msg.PageRemainSize - 1
+		//tailPos = msg.PageRemainSize - 1
 	}
 	page := structType.Page{}
 	page.SetPageId(msg.PageId(id))
 	page.SetNextPageId(msg.PageId(nextID))
 	page.SetFreeSpace(msg.FreeSpaceTypeInTable(freeSpace))
 	page.SetPinCount(0)
-	page.SetHeaderPos(headPos)
-	page.SetTailPos(tailPos)
+	//page.SetHeaderPos(headPos)
+	//page.SetTailPos(tailPos)
 	page.SetData(bytes)
 	page.SetDirty(false)
 	return &page, nil

@@ -158,6 +158,12 @@ type Table struct {
 
 按照query的方法查找到最终记录，但最终记录是三元组Triplet（record修改后的数值，页码，偏移量）
 
+#### delete表
+
+1. 判断本页的freeSpace是否有值
+   * 无值：freeSpace指向该偏移，这个记录的空间置为-1
+   * 有值：这个空闲地址记录freeSpace信息，freeSpace指向这个空间
+
 ## 缓冲管理
 
 ```go

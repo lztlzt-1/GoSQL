@@ -5,6 +5,7 @@ import (
 	"GoSQL/src/msg"
 	"GoSQL/src/storage/diskMgr"
 	"GoSQL/src/structType"
+	"GoSQL/src/utils"
 	"errors"
 	"fmt"
 )
@@ -161,18 +162,6 @@ func (this *BufferPoolManager) dumpPage(frameId msg.FrameId) error {
 //////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////       对页的操作都有缓存实现接口      ////////////////////////
 
-func (this *BufferPoolManager) SetPageData(page *structType.Page, data []byte) {
-	this.pin(page)
-	page.SetData(data)
-	this.unPin(page)
-}
-
-func (this *BufferPoolManager) GetPageData(page *structType.Page) []byte {
-	this.insertPage(page)
-	data := page.GetData()
-	return data
-}
-
 func (this *BufferPoolManager) SetNextPageID(page *structType.Page, pageID msg.PageId) {
 	this.pin(page)
 	page.SetNextPageId(pageID)
@@ -238,35 +227,64 @@ func (this *BufferPoolManager) SetDirty(page *structType.Page, isDirty bool) {
 	page.SetDirty(isDirty)
 }
 
-func (this *BufferPoolManager) GetRemainSize(page *structType.Page) int16 {
-	this.insertPage(page)
-	return page.GetRemainSize()
-}
+//func (this *BufferPoolManager) GetRemainSize(page *structType.Page) int16 {
+//	this.insertPage(page)
+//	return page.GetRemainSize()
+//}
 
-func (this *BufferPoolManager) GetHeaderPos(page *structType.Page) int16 {
-	this.insertPage(page)
-	return page.GetHeaderPos()
-}
+//func (this *BufferPoolManager) GetHeaderPos(page *structType.Page) int16 {
+//	this.insertPage(page)
+//	return page.GetHeaderPos()
+//}
 
-func (this *BufferPoolManager) SetHeaderPosByOffset(page *structType.Page, value int16) {
-	this.pin(page)
-	page.SetHeaderPosByOffset(value)
-	this.unPin(page)
-}
+//func (this *BufferPoolManager) SetHeaderPosByOffset(page *structType.Page, value int16) {
+//	this.pin(page)
+//	page.SetHeaderPosByOffset(value)
+//	this.unPin(page)
+//}
 
-func (this *BufferPoolManager) SetHeaderPos(page *structType.Page, value int16) {
-	this.pin(page)
-	page.SetHeaderPos(value)
-	this.unPin(page)
-}
+//func (this *BufferPoolManager) SetHeaderPos(page *structType.Page, value int16) {
+//	this.pin(page)
+//	page.SetHeaderPos(value)
+//	this.unPin(page)
+//}
 
-func (this *BufferPoolManager) GetTailPos(page *structType.Page) int16 {
-	this.insertPage(page)
-	return page.GetTailPos()
-}
+//func (this *BufferPoolManager) GetTailPos(page *structType.Page) int16 {
+//	this.insertPage(page)
+//	return page.GetTailPos()
+//}
 
-func (this *BufferPoolManager) SetTailPos(page *structType.Page, value int16) {
-	this.pin(page)
-	page.SetTailPos(value)
-	this.unPin(page)
+//func (this *BufferPoolManager) SetTailPos(page *structType.Page, value int16) {
+//	this.pin(page)
+//	page.SetTailPos(value)
+//	this.unPin(page)
+//}
+
+// InsertDataToFreeSpace 在这里查找空余位置并判断
+func (this *BufferPoolManager) InsertDataToFreeSpace(page *structType.Page, bytes []byte) (int, error) {
+	index := this.GetFreeSpace(page)
+	for int(index)+len(bytes) >= msg.PageRemainSize {
+		//说明这页没有空余空间
+		nextPageID := this.GetNextPageID(page)
+		var err error
+		page, err = this.GetPageById(nextPageID)
+		if err != nil {
+			return 0, err
+		}
+		index = this.GetFreeSpace(page)
+	}
+	data := this.GetData(page)
+	nextFreeSpace := utils.Bytes2Int16(data[index+1 : index+3]) // 前面有1Bflag
+	if nextFreeSpace != 0 {
+		this.SetFreeSpace(page, msg.FreeSpaceTypeInTable(nextFreeSpace))
+	} else {
+		this.SetFreeSpace(page, msg.FreeSpaceTypeInTable(int(index)+len(bytes)))
+	}
+	var err error
+	data, err = utils.InsertAndReplaceAtIndex(data, int(index), bytes)
+	if err != nil {
+		return 0, err
+	}
+	this.SetData(page, data)
+	return msg.Success, nil
 }
