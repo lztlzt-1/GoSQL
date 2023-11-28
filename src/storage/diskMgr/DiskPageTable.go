@@ -46,7 +46,3 @@ func (this *DiskPageTable) ToDisk() error {
 	fmt.Println(records)
 	return nil
 }
-
-//func (this *DiskPageTable) LoadFromDisk(pageId msg.PageId) int {
-//
-//}

@@ -14,7 +14,6 @@ type DiskManager struct {
 	diskPageTable DiskPageTable
 	getNewPageId  func() msg.PageId
 	freePageList  []msg.PageId
-	//dirtyPageList map[*structType.Page]bool // 用于事务处理时将脏页重新写回磁盘
 }
 
 // NewDiskManager 全局只需要一个diskManager！扫描disk的文件并提取必要信息
@@ -30,7 +29,6 @@ func NewDiskManager(filePath string) (*DiskManager, error) {
 		fp:            file,
 		diskPageTable: NewDiskPageTable(msg.DiskBucketSize),
 		freePageList:  make([]msg.PageId, 0),
-		//dirtyPageList: make(map[*structType.Page]bool),
 	}
 	err = GlobalDiskManager.loadPageTable(msg.PageTableStart)
 	if err != nil {
@@ -176,7 +174,6 @@ func (this *DiskManager) DumpPageTable() error {
 	if err != nil {
 		return err
 	}
-	//bytes = bytes[:0]
 	// 将initPage重新设置
 	return nil
 }
@@ -221,43 +218,6 @@ func (this *DiskManager) DumpInitPage() error {
 	return nil
 }
 
-//// LoadBytesByID 获取1页的二进制数据
-//func (this *DiskManager) LoadBytesByID(pageID msg.PageId) ([]byte, error) {
-//	bytes, err := this.GetData(int64(msg.PageSize*pageID), 0)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return bytes, nil
-//}
-//
-//func Shutdown() {
-//
-//}
-
-// Deprecated: RefreshPages 将脏页写回内存,更新成bufferManager.Refresh()
-//func (this *DiskManager) RefreshPages() {
-//	for page, _ := range this.dirtyPageList {
-//
-//		_, err := this.WritePage(page.GetPageId(), page)
-//		if err != nil {
-//			log.Fatal(err)
-//		}
-//	}
-//	this.dirtyPageList = make(map[*structType.Page]bool)
-//}
-//
-//func (this *DiskManager) RemoveDirtyPageFromList(page *structType.Page) {
-//	if _, ok := this.dirtyPageList[page]; !ok {
-//		log.Printf("%d is not in dirtyPageList", page)
-//		return
-//	}
-//	delete(this.dirtyPageList, page)
-//}
-//
-//func (this *DiskManager) InsertDirtyPageToList(page *structType.Page) {
-//	this.dirtyPageList[page] = true
-//}
-
 func initDBFile(filePath string) {
 	file, err := os.OpenFile(filePath, os.O_CREATE, 0666)
 	if err != nil {
@@ -284,10 +244,6 @@ func initDBFile(filePath string) {
 	return
 }
 
-//func (this *DiskManager) SetBytesToPage(bytes []byte, page *structType.Page) (int, error) {
-//
-//}
-
 // WritePage 向磁盘的文件中写入一个页,如果超过文件大小则会在最末尾加
 func (this *DiskManager) WritePage(pageId msg.PageId, page *structType.Page) (int, error) {
 	offset := pageId * msg.PageSize
@@ -306,22 +262,6 @@ func (this *DiskManager) WritePage(pageId msg.PageId, page *structType.Page) (in
 		return -1, err
 	}
 	data, err = utils.InsertAndReplaceAtIndex[byte](data, 8, utils.Int162Bytes(int16(page.GetFreeSpace())))
-	//data, err = utils.InsertAndReplaceAtIndex[byte](data, 10, utils.Int2Bytes(page.GetPinCount()))
-	//if err != nil {
-	//	return -1, err
-	//}
-	//data, err = utils.InsertAndReplaceAtIndex[byte](data, 10, utils.Int162Bytes(page.GetHeaderPos()))
-	//if err != nil {
-	//	return -1, err
-	//}
-	//data, err = utils.InsertAndReplaceAtIndex[byte](data, 12, utils.Int162Bytes(page.GetTailPos()))
-	//if err != nil {
-	//	return -1, err
-	//}
-	//data, err = utils.InsertAndReplaceAtIndex[byte](data, 18, utils.Bool2Bytes(page.IsDirty()))
-	//if err != nil {
-	//	return -1, err
-	//}
 	data, err = utils.InsertAndReplaceAtIndex[byte](data, 10, page.GetData())
 	if err != nil {
 		return -1, err
@@ -360,7 +300,6 @@ func (this *DiskManager) ReadPage(pageId msg.PageId) (structType.Page, error) {
 	if err != nil {
 		return page, err
 	}
-	//data := make([]byte, dataTypes.PageSize)
 	data := make([]byte, 4096)
 	_, err = this.fp.Read(data)
 	if err != nil {
@@ -373,12 +312,6 @@ func (this *DiskManager) ReadPage(pageId msg.PageId) (structType.Page, error) {
 	page.SetNextPageId(msg.PageId(utils.Bytes2Int(readData)))
 	readData, err = utils.ReadBytesFromPosition(data, 8, 2)
 	page.SetFreeSpace(msg.FreeSpaceTypeInTable(utils.Bytes2Int16(readData)))
-	//readData, err = utils.ReadBytesFromPosition(data, 10, 2)
-	//page.SetHeaderPos(utils.Bytes2Int16(readData))
-	//readData, err = utils.ReadBytesFromPosition(data, 12, 2)
-	//page.SetTailPos(utils.Bytes2Int16(readData))
-	//readData, err = utils.ReadBytesFromPosition(data, 12, 1)
-	//page.SetDirty(utils.Bytes2Bool(readData))
 	values, err := utils.ReadBytesFromPosition(data, 10, msg.PageRemainSize)
 	page.SetData(values)
 	log.Println(msg.SuccessWritePage(int(pageId)))
@@ -409,23 +342,16 @@ func (this *DiskManager) GetPageById(pageid msg.PageId) (*structType.Page, error
 		nextID = -1
 	}
 	freeSpace := utils.Bytes2Int16(pageBytes[8:10])
-	//count := utils.Bytes2Int(pageBytes[10:14])
-	//headPos := utils.Bytes2Int16(pageBytes[10:12])
-	//tailPos := utils.Bytes2Int16(pageBytes[12:14])
-	//isDirty := utils.Bytes2Bool(pageBytes[14:19])
 	bytes := pageBytes[10:]
 	if id == 0 {
 		id = pageid
 		nextID = -1
-		//tailPos = msg.PageRemainSize - 1
 	}
 	page := structType.Page{}
 	page.SetPageId(msg.PageId(id))
 	page.SetNextPageId(msg.PageId(nextID))
 	page.SetFreeSpace(msg.FreeSpaceTypeInTable(freeSpace))
 	page.SetPinCount(0)
-	//page.SetHeaderPos(headPos)
-	//page.SetTailPos(tailPos)
 	page.SetData(bytes)
 	page.SetDirty(false)
 	return &page, nil

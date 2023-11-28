@@ -142,43 +142,6 @@ func (this *PageManager) InsertMultipleDataForNewTable(page *structType.Page, va
 		return 0, 0, err
 	}
 	return int(page.GetPageId()), int(page.GetFreeSpace()), nil
-	//remainSize := msg.PageRemainSize - len(head)
-	//recordNum := remainSize / recordSize
-	//head = append(head, value[:recordNum*recordSize]...)
-	//value = value[recordNum*recordSize:]
-	//
-	//nextPage, err := this.GetNextPage(page, diskManager)
-	//if err != nil {
-	//	return err
-	//}
-	//page = nextPage
-	//page.SetNextPageId(nextPages[0])
-	//nextPages = nextPages[1:]
-	//sizeInOnePage := msg.PageRemainSize / recordSize
-	////已经处理完包括头文件的所有数据，下面的数据只有record
-	//for {
-	//	// 这里总共⌈len(value)/(sizeInOnePage*recordSize)⌉个page，其中len(value)=len(value)-headSize
-	//	if len(value) <= msg.PageRemainSize {
-	//		err := this.insertDataAndToDisk(page, value, diskManager)
-	//		if err != nil {
-	//			return err
-	//		}
-	//		diskManager.SetFreePageID(nextPages...)
-	//		return nil
-	//	}
-	//	err := this.insertDataAndToDisk(page, value[:sizeInOnePage*recordSize], diskManager)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	value = value[sizeInOnePage*recordSize:]
-	//	nextPage, err := this.GetNextPage(page, diskManager)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	page = nextPage
-	//	page.SetNextPageId(nextPages[0])
-	//	nextPages = nextPages[1:]
-	//}
 }
 
 func (this *PageManager) GetNextPage(page *structType.Page, diskManager *diskMgr.DiskManager) (*structType.Page, error) {
@@ -190,18 +153,6 @@ func (this *PageManager) GetNextPage(page *structType.Page, diskManager *diskMgr
 	if nextPage.GetPageId() == 0 {
 		nextPage = this.NewPageWithID(page.GetNextPageId())
 	}
-	//if page.GetNextPageId() == -1 {
-	//	newPage = this.CreateNextPage(page, diskManager)
-	//} else {
-	//	var err error
-	//	pageValue, err := diskManager.GetPageById(page.GetNextPageId())
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//	newPage = pageValue
-	//}
-	//nextID := newPage.GetPageId()
-	//page.SetNextPageId(nextID)
 	return nextPage, nil
 }
 
@@ -222,7 +173,6 @@ func (this *PageManager) insertDataAndToDisk(page *structType.Page, value []byte
 		return err
 	}
 	page.SetData(data)
-	//page.SetHeaderPosByOffset(int16(len(value)))
 	page.SetFreeSpace(page.GetFreeSpace())
 	err = this.ToDisk(page, GlobalDiskManager)
 	if err != nil {
@@ -238,11 +188,3 @@ func (this *PageManager) CreateNextPage(page *structType.Page, diskManager *disk
 	newPage.SetDirty(false)
 	return newPage
 }
-
-//func (this *PageManager) InitEmptyPage(page *structType.Page, diskManager *diskMgr.DiskManager) *structType.Page {
-//	newPage := this.NewPage(diskManager)
-//	page.SetNextPageId(newPage.GetPageId())
-//	newPage.SetDirty(false)
-//	newPage.SetPinCount(page.GetPinCount())
-//	return newPage
-//}

@@ -227,39 +227,6 @@ func (this *BufferPoolManager) SetDirty(page *structType.Page, isDirty bool) {
 	page.SetDirty(isDirty)
 }
 
-//func (this *BufferPoolManager) GetRemainSize(page *structType.Page) int16 {
-//	this.insertPage(page)
-//	return page.GetRemainSize()
-//}
-
-//func (this *BufferPoolManager) GetHeaderPos(page *structType.Page) int16 {
-//	this.insertPage(page)
-//	return page.GetHeaderPos()
-//}
-
-//func (this *BufferPoolManager) SetHeaderPosByOffset(page *structType.Page, value int16) {
-//	this.pin(page)
-//	page.SetHeaderPosByOffset(value)
-//	this.unPin(page)
-//}
-
-//func (this *BufferPoolManager) SetHeaderPos(page *structType.Page, value int16) {
-//	this.pin(page)
-//	page.SetHeaderPos(value)
-//	this.unPin(page)
-//}
-
-//func (this *BufferPoolManager) GetTailPos(page *structType.Page) int16 {
-//	this.insertPage(page)
-//	return page.GetTailPos()
-//}
-
-//func (this *BufferPoolManager) SetTailPos(page *structType.Page, value int16) {
-//	this.pin(page)
-//	page.SetTailPos(value)
-//	this.unPin(page)
-//}
-
 // InsertDataToFreeSpace 在这里查找空余位置并判断
 func (this *BufferPoolManager) InsertDataToFreeSpace(page *structType.Page, bytes []byte) (int, error) {
 	index := this.GetFreeSpace(page)
